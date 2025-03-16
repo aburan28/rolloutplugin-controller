@@ -1,0 +1,15 @@
+apiVersion: rolloutsplugin.io/v1alpha1
+kind: RolloutPlugin
+metadata:
+  name: rolloutplugin-sample
+  namespace: default
+spec:
+  plugin:
+    name: yo
+    url: http://localhost:8080
+    sha256: "1234567890"
+  strategy:
+    type: Canary
+    canary:
+      steps:
+      - step: "s1"
