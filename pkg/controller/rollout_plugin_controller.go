@@ -40,6 +40,22 @@ func (r *RolloutPluginReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
+	if !rolloutPlugin.Status.Initialized {
+		// Initialize the plugin
+		fmt.Println("Initializing plugin")
+		pluginName := rolloutPlugin.Spec.Plugin.Name
+		client := pluginClients.client[pluginName]
+		if client == nil {
+			_, err = pluginClients.startPlugin(pluginName)
+
+		}
+		// download the plugin
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("unable to find plugin (%s): %w", rolloutPlugin.Spec.Plugin.Name, err)
+		}
+		pluginClients.startPlugin(rolloutPlugin.Spec.Plugin.Name)
+		return ctrl.Result{}, nil
+	}
 
 	fmt.Println("RolloutPlugin: ", rolloutPlugin)
 	rolloutPlugin.Status.Initialized = true

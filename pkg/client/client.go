@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os/exec"
 	"rolloutplugin-controller/pkg/plugin"
+	"rolloutplugin-controller/pkg/plugin/rpc"
+	types "rolloutplugin-controller/pkg/types"
 	"sync"
 
 	goPlugin "github.com/hashicorp/go-plugin"
@@ -11,10 +13,10 @@ import (
 
 type RolloutPlugin struct {
 	client map[string]*goPlugin.Client
-	plugin map[string]plugin.Plugin
+	plugin map[string]plugin.RolloutPlugin
 }
 
-var pluginClients *stepPlugin
+var pluginClients *RolloutPlugin
 var once sync.Once
 var mutex sync.Mutex
 
@@ -26,16 +28,16 @@ var handshakeConfig = goPlugin.HandshakeConfig{
 
 // pluginMap is the map of plugins we can dispense.
 var pluginMap = map[string]goPlugin.Plugin{
-	"RpcStepPlugin": &rpc.RpcStepPlugin{},
+	"RpcRolloutPlugin": &rpc.RpcRolloutPlugin{},
 }
 
-func (t *stepPlugin) startPlugin(pluginName string) (rpc.StepPlugin, error) {
+func (t *RolloutPlugin) startPlugin(pluginName string) (rpc.RolloutPlugin, error) {
 	mutex.Lock()
 	defer mutex.Unlock()
 
 	if t.client[pluginName] == nil || t.client[pluginName].Exited() {
 
-		pluginPath, args, err := plugin.GetPluginInfo(pluginName, types.PluginTypeStep)
+		pluginPath, args, err := plugin.GetPluginInfo(pluginName, types.RolloutPluginStep)
 		if err != nil {
 			return nil, fmt.Errorf("unable to find plugin (%s): %w", pluginName, err)
 		}
@@ -53,12 +55,12 @@ func (t *stepPlugin) startPlugin(pluginName string) (rpc.StepPlugin, error) {
 		}
 
 		// Request the plugin
-		plugin, err := rpcClient.Dispense("RpcStepPlugin")
+		plugin, err := rpcClient.Dispense("RpcRolloutPlugin")
 		if err != nil {
 			return nil, fmt.Errorf("unable to dispense plugin (%s): %w", pluginName, err)
 		}
 
-		pluginType, ok := plugin.(rpc.StepPlugin)
+		pluginType, ok := plugin.(rpc.RolloutPlugin)
 		if !ok {
 			return nil, fmt.Errorf("unexpected type from plugin")
 		}
