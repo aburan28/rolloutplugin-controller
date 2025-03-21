@@ -37,10 +37,11 @@ func newCommand() *cobra.Command {
 				LeaderElectionID:        "rolloutplugin-controller",
 				LeaderElectionNamespace: "default",
 			})
+
 			if err != nil {
 				log.Fatal(err)
 			}
-			if err = (&controller.RolloutPluginReconciler{
+			if err = (&controller.RolloutPluginController{
 				Client:           mgr.GetClient(),
 				Scheme:           mgr.GetScheme(),
 				Recorder:         mgr.GetEventRecorderFor("rolloutplugin-controller"),

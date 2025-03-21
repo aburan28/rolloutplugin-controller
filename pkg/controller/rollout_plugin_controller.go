@@ -14,7 +14,7 @@ import (
 )
 
 // PhasedRolloutReconciler reconciles a PhasedRollout object.
-type RolloutPluginReconciler struct {
+type RolloutPluginController struct {
 	client.Client
 	Scheme           *runtime.Scheme
 	Recorder         record.EventRecorder
@@ -22,7 +22,7 @@ type RolloutPluginReconciler struct {
 	MaxConcurrent    int
 }
 
-func (r *RolloutPluginReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *RolloutPluginController) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.RolloutPlugin{}).
 		Owns(&v1alpha1.RolloutPlugin{}).
@@ -32,7 +32,7 @@ func (r *RolloutPluginReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		)
 }
 
-func (r *RolloutPluginReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *RolloutPluginController) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	fmt.Println("Reconcile called")
 	var rolloutPlugin v1alpha1.RolloutPlugin
 
@@ -43,17 +43,17 @@ func (r *RolloutPluginReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	if !rolloutPlugin.Status.Initialized {
 		// Initialize the plugin
 		fmt.Println("Initializing plugin")
-		pluginName := rolloutPlugin.Spec.Plugin.Name
-		client := pluginClients.client[pluginName]
-		if client == nil {
-			_, err = pluginClients.startPlugin(pluginName)
+		// pluginName := rolloutPlugin.Spec.Plugin.Name
+		// client := pluginClients.client[pluginName]
+		// if client == nil {
+		// 	_, err = pluginClients.startPlugin(pluginName)
 
-		}
-		// download the plugin
-		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("unable to find plugin (%s): %w", rolloutPlugin.Spec.Plugin.Name, err)
-		}
-		pluginClients.startPlugin(rolloutPlugin.Spec.Plugin.Name)
+		// }
+		// // download the plugin
+		// if err != nil {
+		// 	return ctrl.Result{}, fmt.Errorf("unable to find plugin (%s): %w", rolloutPlugin.Spec.Plugin.Name, err)
+		// }
+		// pluginClients.startPlugin(rolloutPlugin.Spec.Plugin.Name)
 		return ctrl.Result{}, nil
 	}
 
@@ -81,7 +81,7 @@ func (r *RolloutPluginReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	return ctrl.Result{}, nil
 }
 
-func (r *RolloutPluginReconciler) SetConditions(rolloutPlugin *v1alpha1.RolloutPlugin) {
+func (r *RolloutPluginController) SetConditions(rolloutPlugin *v1alpha1.RolloutPlugin) {
 
 	// Set conditions
 

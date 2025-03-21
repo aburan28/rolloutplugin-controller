@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"rolloutplugin-controller/api/v1alpha1"
 
-	"github.com/containerd/containerd/log"
+	log "github.com/sirupsen/logrus"
 )
 
 type RolloutPlugin interface {

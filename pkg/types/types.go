@@ -18,6 +18,10 @@ func (e RpcError) HasError() bool {
 	return e.ErrorString != ""
 }
 
+type RolloutPlugins struct {
+	Items []PluginItem `json:"items" yaml:"items"`
+}
+
 type PluginType string
 
 const (
