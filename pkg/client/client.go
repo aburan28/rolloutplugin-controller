@@ -3,10 +3,11 @@ package client
 import (
 	"fmt"
 	"os/exec"
-	"rolloutplugin-controller/pkg/plugin"
-	"rolloutplugin-controller/pkg/plugin/rpc"
-	types "rolloutplugin-controller/pkg/types"
 	"sync"
+
+	"github.com/aburan28/rolloutplugin-controller/pkg/plugin"
+	"github.com/aburan28/rolloutplugin-controller/pkg/plugin/rpc"
+	types "github.com/aburan28/rolloutplugin-controller/pkg/types"
 
 	goPlugin "github.com/hashicorp/go-plugin"
 )
@@ -28,6 +29,7 @@ var handshakeConfig = goPlugin.HandshakeConfig{
 
 // pluginMap is the map of plugins we can dispense.
 var pluginMap = map[string]goPlugin.Plugin{
+	// "RpcRolloutPlugin": &rpc.RpcRolloutPlugin{},
 	"RpcRolloutPlugin": &rpc.RpcRolloutPlugin{},
 }
 

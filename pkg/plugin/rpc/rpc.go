@@ -145,7 +145,7 @@ func (s *RolloutPluginServerRPC) Run(args any, resp *Response) error {
 	if !ok {
 		return fmt.Errorf("invalid args %s", args)
 	}
-	result, err := s.Impl.Run(*runArgs.RolloutPlugin, runArgs.Context)
+	result, err := s.Impl.Run(runArgs.RolloutPlugin, runArgs.Context)
 	*resp = Response{
 		Result: result,
 		Error:  err,
@@ -159,7 +159,7 @@ func (s *RolloutPluginServerRPC) Terminate(args any, resp *Response) error {
 	if !ok {
 		return fmt.Errorf("invalid args %s", args)
 	}
-	result, err := s.Impl.Terminate(*runArgs.RolloutPlugin, runArgs.Context)
+	result, err := s.Impl.Terminate(runArgs.RolloutPlugin, runArgs.Context)
 	*resp = Response{
 		Result: result,
 		Error:  err,
@@ -173,7 +173,7 @@ func (s *RolloutPluginServerRPC) Abort(args any, resp *Response) error {
 	if !ok {
 		return fmt.Errorf("invalid args %s", args)
 	}
-	result, err := s.Impl.Abort(*runArgs.RolloutPlugin, runArgs.Context)
+	result, err := s.Impl.Abort(runArgs.RolloutPlugin, runArgs.Context)
 	*resp = Response{
 		Result: result,
 		Error:  err,
