@@ -14,6 +14,7 @@ type RolloutPlugin interface {
 	SetMirrorRoute(v1alpha1.RolloutPlugin) types.RpcError
 	Rollback(v1alpha1.RolloutPlugin) types.RpcError
 	SetCanaryScale(v1alpha1.RolloutPlugin) types.RpcError
+	Run(v1alpha1.RolloutPlugin, types.RpcRolloutContext) (types.RpcRolloutResult, types.RpcError)
 }
 
 type rolloutPlugin struct {

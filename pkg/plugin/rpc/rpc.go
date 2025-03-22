@@ -39,7 +39,14 @@ func init() {
 
 type RolloutPlugin interface {
 	InitPlugin() types.RpcError
-	types.RpcRolloutResult
+	SetWeight(v1alpha1.RolloutPlugin) types.RpcError
+	SetMirrorRoute(v1alpha1.RolloutPlugin) types.RpcError
+	Rollback(v1alpha1.RolloutPlugin) types.RpcError
+	SetCanaryScale(v1alpha1.RolloutPlugin) types.RpcError
+	Run(v1alpha1.RolloutPlugin, types.RpcRolloutContext) (types.RpcRolloutResult, types.RpcError)
+	Terminate(v1alpha1.RolloutPlugin, types.RpcRolloutContext) (types.RpcRolloutResult, types.RpcError)
+	Abort(v1alpha1.RolloutPlugin, types.RpcRolloutContext) (types.RpcRolloutResult, types.RpcError)
+	Type() string
 }
 
 // RolloutPluginRPC Here is an implementation that talks over RPC
@@ -129,7 +136,7 @@ func (s *RolloutPluginServerRPC) Run(args any, resp *Response) error {
 	if !ok {
 		return fmt.Errorf("invalid args %s", args)
 	}
-	result, err := s.Impl.Run(runArgs.RolloutPlugin, runArgs.Context)
+	result, err := s.Impl.Run(*runArgs.RolloutPlugin, runArgs.Context)
 	*resp = Response{
 		Result: result,
 		Error:  err,
@@ -143,7 +150,7 @@ func (s *RolloutPluginServerRPC) Terminate(args any, resp *Response) error {
 	if !ok {
 		return fmt.Errorf("invalid args %s", args)
 	}
-	result, err := s.Impl.Terminate(runArgs.RolloutPlugin, runArgs.Context)
+	result, err := s.Impl.Terminate(*runArgs.RolloutPlugin, runArgs.Context)
 	*resp = Response{
 		Result: result,
 		Error:  err,
@@ -157,7 +164,7 @@ func (s *RolloutPluginServerRPC) Abort(args any, resp *Response) error {
 	if !ok {
 		return fmt.Errorf("invalid args %s", args)
 	}
-	result, err := s.Impl.Abort(runArgs.RolloutPlugin, runArgs.Context)
+	result, err := s.Impl.Abort(*runArgs.RolloutPlugin, runArgs.Context)
 	*resp = Response{
 		Result: result,
 		Error:  err,
