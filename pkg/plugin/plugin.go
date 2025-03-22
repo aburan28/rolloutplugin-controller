@@ -25,17 +25,17 @@ type rolloutPlugin struct {
 }
 
 func (r *rolloutPlugin) SetWeight(rollout v1alpha1.RolloutPlugin) types.RpcError {
-	return nil
+	return types.RpcError{}
 }
 
 func (r *rolloutPlugin) SetMirrorRoute(rollout v1alpha1.RolloutPlugin) types.RpcError {
-	return nil
+	return types.RpcError{}
 }
 
 func (r *rolloutPlugin) Rollback(rollout v1alpha1.RolloutPlugin) types.RpcError {
-	return nil
+	return types.RpcError{}
 }
 
 func (r *rolloutPlugin) SetCanaryScale(rollout v1alpha1.RolloutPlugin) types.RpcError {
-	return nil
+	return types.RpcError{}
 }
