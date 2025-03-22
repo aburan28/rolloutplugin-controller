@@ -31,13 +31,14 @@ type Response struct {
 }
 
 func init() {
-	gob.RegisterName("step.RunArgs", new(RunArgs))
-	gob.RegisterName("step.TerminateArgs", new(TerminateArgs))
-	gob.RegisterName("step.AbortArgs", new(AbortArgs))
+	gob.RegisterName("rollout.RunArgs", new(RunArgs))
+	gob.RegisterName("rollout.TerminateArgs", new(TerminateArgs))
+	gob.RegisterName("rollout.AbortArgs", new(AbortArgs))
 }
 
 type RolloutPlugin interface {
 	InitPlugin() types.RpcError
+	types.RpcRolloutResult
 }
 
 // RolloutPluginRPC Here is an implementation that talks over RPC
@@ -54,7 +55,7 @@ func (g *RolloutPluginRPC) InitPlugin() types.RpcError {
 	return resp
 }
 
-// Run executes the step
+// Run executes the rollout
 func (g *RolloutPluginRPC) Run(rollout *v1alpha1.RolloutPlugin, context types.RpcRolloutContext) (types.RpcRolloutResult, types.RpcError) {
 	var resp Response
 	var args any = RunArgs{
@@ -68,7 +69,7 @@ func (g *RolloutPluginRPC) Run(rollout *v1alpha1.RolloutPlugin, context types.Rp
 	return resp.Result, resp.Error
 }
 
-// Terminate stops the execution of a running step and exits early
+// Terminate stops the execution of a running rollout and exits early
 func (g *RolloutPluginRPC) Terminate(rollout *v1alpha1.RolloutPlugin, context types.RpcRolloutContext) (types.RpcRolloutResult, types.RpcError) {
 	var resp Response
 	var args any = TerminateArgs{
@@ -82,7 +83,7 @@ func (g *RolloutPluginRPC) Terminate(rollout *v1alpha1.RolloutPlugin, context ty
 	return resp.Result, resp.Error
 }
 
-// Abort reverts previous operation executed by the step if necessary
+// Abort reverts previous operation executed by the rollout if necessary
 func (g *RolloutPluginRPC) Abort(rollout *v1alpha1.RolloutPlugin, context types.RpcRolloutContext) (types.RpcRolloutResult, types.RpcError) {
 	var resp Response
 	var args any = AbortArgs{
@@ -107,22 +108,22 @@ func (g *RolloutPluginRPC) Type() string {
 	return resp
 }
 
-// StepRPCServer Here is the RPC server that MetricsPluginRPC talks to, conforming to
+// RolloutPluginServerRPC Here is the RPC server that MetricsPluginRPC talks to, conforming to
 // the requirements of net/rpc
-type StepRPCServer struct {
+type RolloutPluginServerRPC struct {
 	// This is the real implementation
-	Impl RolloutPluginRPC
+	Impl RolloutPlugin
 }
 
 // InitPlugin this is the server aka the controller side function that receives calls from the client side rpc (controller)
 // this gets called once during startup of the plugin and can be used to set up informers or k8s clients etc.
-func (s *StepRPCServer) InitPlugin(args any, resp *types.RpcError) error {
+func (s *RolloutPluginServerRPC) InitPlugin(args any, resp *types.RpcError) error {
 	*resp = s.Impl.InitPlugin()
 	return nil
 }
 
-// Run executes the step
-func (s *StepRPCServer) Run(args any, resp *Response) error {
+// Run executes the rollout
+func (s *RolloutPluginServerRPC) Run(args any, resp *Response) error {
 	runArgs, ok := args.(*RunArgs)
 	if !ok {
 		return fmt.Errorf("invalid args %s", args)
@@ -135,8 +136,8 @@ func (s *StepRPCServer) Run(args any, resp *Response) error {
 	return nil
 }
 
-// Terminate stops the execution of a running step and exits early
-func (s *StepRPCServer) Terminate(args any, resp *Response) error {
+// Terminate stops the execution of a running rollout and exits early
+func (s *RolloutPluginServerRPC) Terminate(args any, resp *Response) error {
 	runArgs, ok := args.(*TerminateArgs)
 	if !ok {
 		return fmt.Errorf("invalid args %s", args)
@@ -149,8 +150,8 @@ func (s *StepRPCServer) Terminate(args any, resp *Response) error {
 	return nil
 }
 
-// Abort reverts previous operation executed by the step if necessary
-func (s *StepRPCServer) Abort(args any, resp *Response) error {
+// Abort reverts previous operation executed by the rollout if necessary
+func (s *RolloutPluginServerRPC) Abort(args any, resp *Response) error {
 	runArgs, ok := args.(*AbortArgs)
 	if !ok {
 		return fmt.Errorf("invalid args %s", args)
@@ -164,30 +165,30 @@ func (s *StepRPCServer) Abort(args any, resp *Response) error {
 }
 
 // Type returns the type of the traffic routing reconciler
-func (s *StepRPCServer) Type(args any, resp *string) error {
+func (s *RolloutPluginServerRPC) Type(args any, resp *string) error {
 	*resp = s.Impl.Type()
 	return nil
 }
 
-// RpcStepPlugin This is the implementation of plugin.Plugin so we can serve/consume
+// RpcrolloutPlugin This is the implementation of plugin.Plugin so we can serve/consume
 //
 // This has two methods: Server must return an RPC server for this plugin
-// type. We construct a StepRPCServer for this.
+// type. We construct a RolloutPluginServerRPC for this.
 //
 // Client must return an implementation of our interface that communicates
 // over an RPC client. We return RolloutPluginRPC for this.
 //
 // Ignore MuxBroker. That is used to create more multiplexed streams on our
 // plugin connection and is a more advanced use case.
-type RpcStepPlugin struct {
+type RpcRolloutPlugin struct {
 	// Impl Injection
 	Impl RolloutPlugin
 }
 
-func (p *RpcStepPlugin) Server(*plugin.MuxBroker) (any, error) {
-	return &StepRPCServer{Impl: p.Impl}, nil
+func (p *RpcRolloutPlugin) Server(*plugin.MuxBroker) (any, error) {
+	return &RolloutPluginServerRPC{Impl: p.Impl}, nil
 }
 
-func (RpcStepPlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (any, error) {
+func (RpcRolloutPlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (any, error) {
 	return &RolloutPluginRPC{client: c}, nil
 }
