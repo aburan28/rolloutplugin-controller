@@ -5,11 +5,11 @@ metadata:
   namespace: default
 spec:
   plugin:
-    name: yo
+    name: statefulset
     url: http://localhost:8080
     sha256: "1234567890"
   strategy:
     type: Canary
     canary:
       steps:
-      - step: "s1"
+      - setWeight: 10

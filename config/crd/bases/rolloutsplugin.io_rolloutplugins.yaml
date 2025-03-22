@@ -57,10 +57,163 @@ spec:
                       steps:
                         items:
                           properties:
-                            step:
-                              type: string
-                          required:
-                          - step
+                            pause:
+                              description: |-
+                                Pause freezes the rollout by setting spec.Paused to true.
+                                A Rollout will resume when spec.Paused is reset to false.
+                              properties:
+                                duration:
+                                  anyOf:
+                                  - type: integer
+                                  - type: string
+                                  description: Duration the amount of time to wait
+                                    before moving to the next step.
+                                  x-kubernetes-int-or-string: true
+                              type: object
+                            setCanaryScale:
+                              description: SetCanaryScale defines how to scale the
+                                newRS without changing traffic weight
+                              properties:
+                                matchTrafficWeight:
+                                  description: MatchTrafficWeight cancels out previously
+                                    set Replicas or Weight, effectively activating
+                                    SetWeight
+                                  type: boolean
+                                replicas:
+                                  description: Replicas sets the number of replicas
+                                    the newRS should have
+                                  format: int32
+                                  type: integer
+                                weight:
+                                  description: Weight sets the percentage of replicas
+                                    the newRS should have
+                                  format: int32
+                                  type: integer
+                              type: object
+                            setHeaderRoute:
+                              description: SetHeaderRoute defines the route with specified
+                                header name to send 100% of traffic to the canary
+                                service
+                              properties:
+                                match:
+                                  items:
+                                    properties:
+                                      headerName:
+                                        description: HeaderName the name of the request
+                                          header
+                                        type: string
+                                      headerValue:
+                                        description: HeaderValue the value of the
+                                          header
+                                        properties:
+                                          exact:
+                                            description: Exact The string must match
+                                              exactly
+                                            type: string
+                                          prefix:
+                                            description: Prefix The string will be
+                                              prefixed matched
+                                            type: string
+                                          regex:
+                                            description: Regex The string will be
+                                              regular expression matched
+                                            type: string
+                                        type: object
+                                    required:
+                                    - headerName
+                                    - headerValue
+                                    type: object
+                                  type: array
+                                name:
+                                  description: |-
+                                    Name this is the name of the route to use for the mirroring of traffic this also needs
+                                    to be included in the `spec.strategy.canary.trafficRouting.managedRoutes` field
+                                  type: string
+                              type: object
+                            setMirrorRoute:
+                              description: SetMirrorRoutes Mirrors traffic that matches
+                                rules to a particular destination
+                              properties:
+                                match:
+                                  description: Match Contains a list of rules that
+                                    if mated will mirror the traffic to the services
+                                  items:
+                                    properties:
+                                      headers:
+                                        additionalProperties:
+                                          properties:
+                                            exact:
+                                              description: Exact The string must match
+                                                exactly
+                                              type: string
+                                            prefix:
+                                              description: Prefix The string will
+                                                be prefixed matched
+                                              type: string
+                                            regex:
+                                              description: Regex The string will be
+                                                regular expression matched
+                                              type: string
+                                          type: object
+                                        description: Headers What request with matching
+                                          headers should be mirrored
+                                        type: object
+                                      method:
+                                        description: Method What http methods should
+                                          be mirrored
+                                        properties:
+                                          exact:
+                                            description: Exact The string must match
+                                              exactly
+                                            type: string
+                                          prefix:
+                                            description: Prefix The string will be
+                                              prefixed matched
+                                            type: string
+                                          regex:
+                                            description: Regex The string will be
+                                              regular expression matched
+                                            type: string
+                                        type: object
+                                      path:
+                                        description: Path What url paths should be
+                                          mirrored
+                                        properties:
+                                          exact:
+                                            description: Exact The string must match
+                                              exactly
+                                            type: string
+                                          prefix:
+                                            description: Prefix The string will be
+                                              prefixed matched
+                                            type: string
+                                          regex:
+                                            description: Regex The string will be
+                                              regular expression matched
+                                            type: string
+                                        type: object
+                                    type: object
+                                  type: array
+                                name:
+                                  description: |-
+                                    Name this is the name of the route to use for the mirroring of traffic this also needs
+                                    to be included in the `spec.strategy.canary.trafficRouting.managedRoutes` field
+                                  type: string
+                                percentage:
+                                  description: |-
+                                    Services The list of services to mirror the traffic to if the method, path, headers match
+                                    Service string `json:"service" protobuf:"bytes,3,opt,name=service"`
+                                    Percentage What percent of the traffic that matched the rules should be mirrored
+                                  format: int32
+                                  type: integer
+                              required:
+                              - name
+                              type: object
+                            setWeight:
+                              description: SetWeight sets what percentage of the newRS
+                                should receive
+                              format: int32
+                              type: integer
                           type: object
                         type: array
                     required:

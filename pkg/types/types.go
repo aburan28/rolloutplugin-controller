@@ -25,7 +25,7 @@ type RolloutPlugins struct {
 type PluginType string
 
 const (
-	PluginTypeRolloutPlugin PluginType = "RolloutPlugin"
+	PluginTypeRolloutPlugin PluginType = "RpcRolloutPlugin"
 )
 
 type PluginItem struct {

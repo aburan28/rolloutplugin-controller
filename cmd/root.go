@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"rolloutplugin-controller/api/v1alpha1"
-	"rolloutplugin-controller/pkg/controller"
-	mgrs "rolloutplugin-controller/pkg/manager"
+
+	"github.com/aburan28/rolloutplugin-controller/api/v1alpha1"
+	"github.com/aburan28/rolloutplugin-controller/pkg/controller"
+	mgrs "github.com/aburan28/rolloutplugin-controller/pkg/manager"
 
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
@@ -61,17 +62,11 @@ func newCommand() *cobra.Command {
 			if err != nil {
 				log.Fatal(err)
 			}
-
-			if err = (&controller.RolloutPluginController{
-				Client:           mgr.GetClient(),
-				Scheme:           mgr.GetScheme(),
-				Recorder:         mgr.GetEventRecorderFor("rolloutplugin-controller"),
-				RetryWaitSeconds: 30,
-				MaxConcurrent:    4,
-			}).SetupWithManager(mgr); err != nil {
+			cntrler := controller.NewRolloutPluginController(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorderFor("rolloutplugin-controller"), 30, 4)
+			if err = cntrler.SetupWithManager(mgr); err != nil {
 				log.Fatal(err)
-				os.Exit(1)
 			}
+
 			err = mgr.Start(ctrl.SetupSignalHandler())
 			if err != nil {
 				log.Fatal(err)
