@@ -4,8 +4,9 @@ import (
 	"encoding/gob"
 	"fmt"
 	"net/rpc"
-	"rolloutplugin-controller/api/v1alpha1"
-	types "rolloutplugin-controller/pkg/types"
+
+	"github.com/aburan28/rolloutplugin-controller/api/v1alpha1"
+	types "github.com/aburan28/rolloutplugin-controller/pkg/types"
 
 	"github.com/hashicorp/go-plugin"
 )

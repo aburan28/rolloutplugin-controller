@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"rolloutplugin-controller/api/v1alpha1"
-	"rolloutplugin-controller/pkg/controller"
 	"sync"
 	"time"
+
+	"github.com/aburan28/rolloutplugin-controller/api/v1alpha1"
+	"github.com/aburan28/rolloutplugin-controller/pkg/controller"
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"

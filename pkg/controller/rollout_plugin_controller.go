@@ -3,7 +3,8 @@ package controller
 import (
 	"context"
 	"fmt"
-	"rolloutplugin-controller/api/v1alpha1"
+
+	"github.com/aburan28/rolloutplugin-controller/api/v1alpha1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -98,5 +99,6 @@ func (r *RolloutPluginController) SetConditions(rolloutPlugin *v1alpha1.RolloutP
 }
 
 func (r *RolloutPluginController) Run(ctx context.Context) error {
+
 	return nil
 }

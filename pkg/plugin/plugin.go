@@ -2,8 +2,9 @@ package plugin
 
 import (
 	"encoding/json"
-	"rolloutplugin-controller/api/v1alpha1"
-	"rolloutplugin-controller/pkg/types"
+
+	"github.com/aburan28/rolloutplugin-controller/api/v1alpha1"
+	"github.com/aburan28/rolloutplugin-controller/pkg/types"
 
 	log "github.com/sirupsen/logrus"
 )
