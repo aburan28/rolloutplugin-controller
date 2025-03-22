@@ -39,13 +39,13 @@ func init() {
 
 type RolloutPlugin interface {
 	InitPlugin() types.RpcError
-	SetWeight(v1alpha1.RolloutPlugin) types.RpcError
-	SetMirrorRoute(v1alpha1.RolloutPlugin) types.RpcError
-	Rollback(v1alpha1.RolloutPlugin) types.RpcError
-	SetCanaryScale(v1alpha1.RolloutPlugin) types.RpcError
-	Run(v1alpha1.RolloutPlugin, types.RpcRolloutContext) (types.RpcRolloutResult, types.RpcError)
-	Terminate(v1alpha1.RolloutPlugin, types.RpcRolloutContext) (types.RpcRolloutResult, types.RpcError)
-	Abort(v1alpha1.RolloutPlugin, types.RpcRolloutContext) (types.RpcRolloutResult, types.RpcError)
+	SetWeight(*v1alpha1.RolloutPlugin) types.RpcError
+	SetMirrorRoute(*v1alpha1.RolloutPlugin) types.RpcError
+	Rollback(*v1alpha1.RolloutPlugin) types.RpcError
+	SetCanaryScale(*v1alpha1.RolloutPlugin) types.RpcError
+	Run(*v1alpha1.RolloutPlugin, types.RpcRolloutContext) (types.RpcRolloutResult, types.RpcError)
+	Terminate(*v1alpha1.RolloutPlugin, types.RpcRolloutContext) (types.RpcRolloutResult, types.RpcError)
+	Abort(*v1alpha1.RolloutPlugin, types.RpcRolloutContext) (types.RpcRolloutResult, types.RpcError)
 	Type() string
 }
 
