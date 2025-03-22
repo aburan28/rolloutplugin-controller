@@ -116,6 +116,15 @@ func (g *RolloutPluginRPC) Type() string {
 	return resp
 }
 
+func (g *RolloutPluginRPC) SetWeight(rollout v1alpha1.RolloutPlugin) types.RpcError {
+	var resp types.RpcError
+	err := g.client.Call("Plugin.SetWeight", rollout, &resp)
+	if err != nil {
+		return types.RpcError{ErrorString: fmt.Sprintf("SetWeight rpc call error: %s", err)}
+	}
+	return resp
+}
+
 // RolloutPluginServerRPC Here is the RPC server that MetricsPluginRPC talks to, conforming to
 // the requirements of net/rpc
 type RolloutPluginServerRPC struct {
