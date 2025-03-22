@@ -9,10 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/argoproj/argo-rollouts/utils/record"
-	"github.com/pkg/errors"
-
 	"github.com/argoproj/argo-cd/server/metrics"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/dynamic/dynamicinformer"
@@ -45,18 +43,20 @@ const (
 )
 
 type Manager struct {
-	wg                            *sync.WaitGroup
-	rolloutPluginSynced           cache.InformerSynced
-	kubeClientSet                 kubernetes.Interface
-	metricsServer                 *metrics.MetricsServer
-	healthzServer                 *http.Server
-	informer                      cache.SharedIndexInformer
-	indexer                       cache.Indexer
-	rolloutPluginWorkqueue        workqueue.TypedRateLimitingInterface[string]
+	wg                     *sync.WaitGroup
+	rolloutPluginSynced    cache.InformerSynced
+	kubeClientSet          kubernetes.Interface
+	metricsServer          *metrics.MetricsServer
+	healthzServer          *http.Server
+	informer               cache.SharedIndexInformer
+	indexer                cache.Indexer
+	rolloutPluginWorkqueue workqueue.TypedRateLimitingInterface[any]
+
 	dynamicInformerFactory        dynamicinformer.DynamicSharedInformerFactory
 	clusterDynamicInformerFactory dynamicinformer.DynamicSharedInformerFactory
 	istioDynamicInformerFactory   dynamicinformer.DynamicSharedInformerFactory
 	rolloutPluginController       controller.RolloutPluginController
+	recorder                      record.EventRecorder
 }
 
 type LeaderElectionOptions struct {
@@ -82,8 +82,8 @@ func (m *Manager) Start(ctx context.Context, rolloutPluginThreadiness int, elect
 	defer runtime.HandleCrash()
 	defer m.rolloutPluginWorkqueue.ShutDown()
 	go func() {
-		log.Infof("Starting Healthz Server at %s", c.healthzServer.Addr)
-		err := c.healthzServer.ListenAndServe()
+		log.Infof("Starting Healthz Server at %s", m.healthzServer.Addr)
+		err := m.healthzServer.ListenAndServe()
 		if err != nil {
 			err = errors.Wrap(err, "Healthz Server Error")
 			log.Error(err)
@@ -91,8 +91,8 @@ func (m *Manager) Start(ctx context.Context, rolloutPluginThreadiness int, elect
 	}()
 
 	go func() {
-		log.Infof("Starting Metric Server at %s", c.metricsServer.Addr)
-		if err := c.metricsServer.ListenAndServe(); err != nil {
+		log.Infof("Starting Metric Server at %s", m.metricsServer.Addr)
+		if err := m.metricsServer.ListenAndServe(); err != nil {
 			log.Error(errors.Wrap(err, "Metric Server Error"))
 		}
 	}()
@@ -106,27 +106,23 @@ func (m *Manager) Start(ctx context.Context, rolloutPluginThreadiness int, elect
 
 	return nil
 }
-func DefaultArgoRolloutsRateLimiter() workqueue.RateLimiter {
-	return workqueue.NewItemExponentialFailureRateLimiter(time.Millisecond, 10*time.Second)
-}
 
 func NewManager(kubeclientset kubernetes.Interface, metricsPort int,
 	healthzPort int) *Manager {
 
 	runtime.Must(v1alpha1.AddToScheme(scheme.Scheme))
 
-	recorder := record.NewEventRecorder(kubeclientset, metrics.MetricRolloutEventsTotal, metrics.MetricNotificationFailedTotal, metrics.MetricNotificationSuccessTotal, metrics.MetricNotificationSend, nil)
 	healthzServer := controller.NewHealthzServer(fmt.Sprintf(listenAddr, healthzPort))
 	metricsServer := metrics.NewMetricsServer(fmt.Sprintf(listenAddr, metricsPort))
 
-	rolloutWorkqueue := workqueue.NewNamedRateLimitingQueue(DefaultArgoRolloutsRateLimiter(), "RolloutPlugin")
+	rolloutPluginWorkqueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "rolloutplugin")
 
 	return &Manager{
 		wg:                      &sync.WaitGroup{},
 		kubeClientSet:           kubeclientset,
 		metricsServer:           metricsServer,
 		healthzServer:           healthzServer,
-		rolloutPluginWorkqueue:  rolloutWorkqueue,
-		rolloutPluginController: controller.NewRolloutPluginController(kubeclientset, scheme.Scheme, recorder, rolloutWorkqueue),
+		rolloutPluginWorkqueue:  rolloutPluginWorkqueue,
+		rolloutPluginController: *controller.NewRolloutPluginController(runtimeClient, recorder, scheme.Scheme, 30, 4),
 	}
 }

@@ -32,6 +32,16 @@ func (r *RolloutPluginController) SetupWithManager(mgr ctrl.Manager) error {
 		)
 }
 
+func NewRolloutPluginController(client client.Client, scheme *runtime.Scheme, recorder record.EventRecorder, retryWaitSeconds int, maxConcurrent int) *RolloutPluginController {
+	return &RolloutPluginController{
+		Client:           client,
+		Scheme:           scheme,
+		RetryWaitSeconds: retryWaitSeconds,
+		Recorder:         recorder,
+		MaxConcurrent:    maxConcurrent,
+	}
+}
+
 func (r *RolloutPluginController) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	fmt.Println("Reconcile called")
 	var rolloutPlugin v1alpha1.RolloutPlugin
