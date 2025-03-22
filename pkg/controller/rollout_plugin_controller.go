@@ -9,7 +9,7 @@ import (
 	"github.com/aburan28/rolloutplugin-controller/api/v1alpha1"
 	"github.com/aburan28/rolloutplugin-controller/pkg/plugin/pluginclient"
 	"github.com/aburan28/rolloutplugin-controller/pkg/plugin/rpc"
-
+	appv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -35,6 +35,9 @@ func (r *RolloutPluginController) SetupWithManager(mgr ctrl.Manager) error {
 		For(&v1alpha1.RolloutPlugin{}).
 		Owns(&v1alpha1.RolloutPlugin{}).
 		Owns(&corev1.PodTemplate{}).
+		Owns(&appv1.StatefulSet{}).
+		Owns(&appv1.ControllerRevision{}).
+		Owns(&appv1.DaemonSet{}).
 		WithOptions(controller.Options{MaxConcurrentReconciles: r.MaxConcurrent}).
 		Complete(
 			r,

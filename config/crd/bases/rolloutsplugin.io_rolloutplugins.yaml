@@ -50,6 +50,15 @@ spec:
                 - sha256
                 - url
                 type: object
+              selector:
+                properties:
+                  matchLabels:
+                    additionalProperties:
+                      type: string
+                    type: object
+                required:
+                - matchLabels
+                type: object
               strategy:
                 properties:
                   canary:
@@ -227,6 +236,7 @@ spec:
                 type: object
             required:
             - plugin
+            - selector
             - strategy
             type: object
           status:
@@ -257,6 +267,9 @@ spec:
                   - type
                   type: object
                 type: array
+              currentStepIndex:
+                format: int32
+                type: integer
               initialized:
                 type: boolean
               observedGeneration:
@@ -264,6 +277,7 @@ spec:
                 type: integer
             required:
             - conditions
+            - currentStepIndex
             - initialized
             - observedGeneration
             type: object
