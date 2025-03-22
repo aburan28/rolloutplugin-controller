@@ -29,6 +29,11 @@ type RolloutPlugin struct {
 type RolloutPluginSpec struct {
 	Plugin   Plugin   `json:"plugin"`
 	Strategy Strategy `json:"strategy"`
+	Selector Selector `json:"selector"`
+}
+
+type Selector struct {
+	MatchLabels map[string]string `json:"matchLabels"`
 }
 
 type Strategy struct {
@@ -57,6 +62,7 @@ type CanaryStep struct {
 	SetMirrorRoute *SetMirrorRoute `json:"setMirrorRoute,omitempty" protobuf:"bytes,8,opt,name=setMirrorRoute"`
 	// Plugin defines a plugin to execute for a step
 }
+
 type RolloutPause struct {
 	// Duration the amount of time to wait before moving to the next step.
 	// +optional
@@ -134,6 +140,7 @@ type RolloutPluginStatus struct {
 	Conditions         []Condition `json:"conditions"`
 	Initialized        bool        `json:"initialized"`
 	ObservedGeneration int64       `json:"observedGeneration"`
+	CurrentStepIndex   int32       `json:"currentStepIndex"`
 }
 
 type Condition struct {
@@ -145,6 +152,8 @@ type Condition struct {
 	Message            string      `json:"message"`
 }
 
+type Steps struct {
+}
 type Reason string
 
 // +kubebuilder:object:root=true

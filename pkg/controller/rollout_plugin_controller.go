@@ -10,6 +10,7 @@ import (
 	"github.com/aburan28/rolloutplugin-controller/pkg/plugin/pluginclient"
 	"github.com/aburan28/rolloutplugin-controller/pkg/plugin/rpc"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
@@ -33,6 +34,7 @@ func (r *RolloutPluginController) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.RolloutPlugin{}).
 		Owns(&v1alpha1.RolloutPlugin{}).
+		Owns(&corev1.PodTemplate{}).
 		WithOptions(controller.Options{MaxConcurrentReconciles: r.MaxConcurrent}).
 		Complete(
 			r,
@@ -71,7 +73,10 @@ func (r *RolloutPluginController) Reconcile(ctx context.Context, req ctrl.Reques
 			fmt.Println(fmt.Errorf("unable to get plugin (%s): %w", rolloutPlugin.Spec.Plugin.Name, err))
 		}
 		r.pluginHandler = plugin
-		plugin.InitPlugin()
+		err = plugin.InitPlugin()
+		if err != nil {
+			return ctrl.Result{}, err
+		}
 		rolloutPlugin.Status.Initialized = true
 		conditions := []v1alpha1.Condition{
 			{
@@ -110,7 +115,9 @@ func (r *RolloutPluginController) Reconcile(ctx context.Context, req ctrl.Reques
 		for _, step := range rolloutPlugin.Spec.Strategy.Canary.Steps {
 			// set weight
 			fmt.Println("Setting weight", step)
-			r.pluginHandler.SetWeight(&rolloutPlugin)
+			defer func() {
+				go r.pluginHandler.SetWeight(&rolloutPlugin)
+			}()
 		}
 	}
 
