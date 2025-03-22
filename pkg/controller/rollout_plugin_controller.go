@@ -96,3 +96,7 @@ func (r *RolloutPluginController) SetConditions(rolloutPlugin *v1alpha1.RolloutP
 	// Set conditions
 
 }
+
+func (r *RolloutPluginController) Run(ctx context.Context) error {
+	return nil
+}

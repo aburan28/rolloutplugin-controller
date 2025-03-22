@@ -9,11 +9,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/argoproj/argo-cd/server/metrics"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/dynamic/dynamicinformer"
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
@@ -43,15 +45,16 @@ const (
 )
 
 type Manager struct {
-	wg                     *sync.WaitGroup
-	rolloutPluginSynced    cache.InformerSynced
-	kubeClientSet          kubernetes.Interface
-	metricsServer          *metrics.MetricsServer
-	healthzServer          *http.Server
-	informer               cache.SharedIndexInformer
-	indexer                cache.Indexer
-	rolloutPluginWorkqueue workqueue.TypedRateLimitingInterface[any]
-
+	wg                            *sync.WaitGroup
+	rolloutPluginSynced           cache.InformerSynced
+	kubeClientSet                 kubernetes.Interface
+	metricsServer                 *controller.MetricsServer
+	healthzServer                 *http.Server
+	informer                      cache.SharedIndexInformer
+	indexer                       cache.Indexer
+	rolloutPluginWorkqueue        workqueue.TypedRateLimitingInterface[any]
+	rolloutController             controller.RolloutPluginController
+	kubeInformerFactory           informers.SharedInformerFactory
 	dynamicInformerFactory        dynamicinformer.DynamicSharedInformerFactory
 	clusterDynamicInformerFactory dynamicinformer.DynamicSharedInformerFactory
 	istioDynamicInformerFactory   dynamicinformer.DynamicSharedInformerFactory
@@ -77,6 +80,24 @@ func NewLeaderElectionOptions() *LeaderElectionOptions {
 	}
 }
 
+func (m *Manager) startLeading(ctx context.Context, rolloutThreadiness int) {
+	defer runtime.HandleCrash()
+	// Start the informer factories to begin populating the informer caches
+	log.Info("Starting Controllers")
+	log.Info("Waiting for controller's informer caches to sync")
+	if ok := cache.WaitForCacheSync(ctx.Done(), m.rolloutPluginSynced); !ok {
+		log.Fatalf("failed to wait for caches to sync, exiting")
+	}
+	// notice that there is no need to run Start methods in a separate goroutine. (i.e. go kubeInformerFactory.Start(stopCh)
+	// Start method is non-blocking and runs all registered informers in a dedicated goroutine.
+	m.dynamicInformerFactory.Start(ctx.Done())
+	m.clusterDynamicInformerFactory.Start(ctx.Done())
+	m.istioDynamicInformerFactory.Start(ctx.Done())
+	m.kubeInformerFactory.Start(ctx.Done())
+	go wait.Until(func() { m.wg.Add(1); m.rolloutPluginController.Run(ctx); m.wg.Done() }, time.Second, ctx.Done())
+
+}
+
 func (m *Manager) Start(ctx context.Context, rolloutPluginThreadiness int, electOpts *LeaderElectionOptions) error {
 
 	defer runtime.HandleCrash()
@@ -88,6 +109,11 @@ func (m *Manager) Start(ctx context.Context, rolloutPluginThreadiness int, elect
 			err = errors.Wrap(err, "Healthz Server Error")
 			log.Error(err)
 		}
+	}()
+
+	mux := controller.NewPProfServer()
+	go func() {
+		log.Println(http.ListenAndServe("127.0.0.1:8888", mux))
 	}()
 
 	go func() {
@@ -111,18 +137,23 @@ func NewManager(kubeclientset kubernetes.Interface, metricsPort int,
 	healthzPort int) *Manager {
 
 	runtime.Must(v1alpha1.AddToScheme(scheme.Scheme))
+	recorder := record.NewBroadcaster().NewRecorder(scheme.Scheme, corev1.EventSource{Component: "rollout-plugin"})
 
 	healthzServer := controller.NewHealthzServer(fmt.Sprintf(listenAddr, healthzPort))
-	metricsServer := metrics.NewMetricsServer(fmt.Sprintf(listenAddr, metricsPort))
+	serverConfig := controller.ServerConfig{
+		Addr: fmt.Sprintf(listenAddr, metricsPort),
+	}
+	metricsServer := controller.NewMetricsServer(serverConfig)
 
 	rolloutPluginWorkqueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "rolloutplugin")
 
 	return &Manager{
-		wg:                      &sync.WaitGroup{},
-		kubeClientSet:           kubeclientset,
-		metricsServer:           metricsServer,
-		healthzServer:           healthzServer,
-		rolloutPluginWorkqueue:  rolloutPluginWorkqueue,
-		rolloutPluginController: *controller.NewRolloutPluginController(runtimeClient, recorder, scheme.Scheme, 30, 4),
+		wg:                     &sync.WaitGroup{},
+		kubeClientSet:          kubeclientset,
+		metricsServer:          metricsServer,
+		healthzServer:          healthzServer,
+		recorder:               recorder,
+		rolloutPluginWorkqueue: rolloutPluginWorkqueue,
+		// rolloutPluginController: *controller.NewRolloutPluginController(r, scheme.Scheme, recorder, 30, 4),
 	}
 }
