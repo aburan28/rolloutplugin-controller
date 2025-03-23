@@ -42,7 +42,70 @@ type Strategy struct {
 }
 
 type Canary struct {
-	Steps []CanaryStep `json:"steps"`
+	Steps          []CanaryStep   `json:"steps"`
+	TrafficRouting TrafficRouting `json:"trafficRouting"`
+}
+
+type TrafficRouting struct {
+	// Istio defines the traffic routing for Istio
+	// +optional
+	Istio *IstioTrafficRouting `json:"istio,omitempty" protobuf:"bytes,1,opt,name=istio"`
+}
+
+type IstioTrafficRouting struct {
+	// VirtualService holds the name of the VirtualService to use for routing traffic
+	VirtualService IstioVirtualService `json:"virtualService" protobuf:"bytes,1,opt,name=virtualService"`
+	// DestinationRule holds the name of the DestinationRule to use for routing traffic
+	// +optional
+	DestinationRule IstioDestinationRule `json:"destinationRule,omitempty" protobuf:"bytes,2,opt,name=destinationRule"`
+	// ManagedRoutes holds the list of routes that are managed by the Rollout
+	// +optional
+	ManagedRoutes []string `json:"managedRoutes,omitempty" protobuf:"bytes,3,opt,name=managedRoutes"`
+	// RouteWeight defines the weight of the traffic to the newRS
+	// +optional
+	RouteWeight *int32 `json:"routeWeight,omitempty" protobuf:"varint,4,opt,name=routeWeight"`
+	// RequestHeaders defines the headers to use for routing traffic
+	// +optional
+	RequestHeaders []string `json:"requestHeaders,omitempty" protobuf:"bytes,5,opt,name=requestHeaders"`
+	// RequestHeaders defines the headers to use for routing traffic
+	// +optional
+	MatchHeaders []string `json:"matchHeaders,omitempty" protobuf:"bytes,6,opt,name=matchHeaders"`
+}
+
+// IstioVirtualService holds information on the virtual service the rollout needs to modify
+type IstioVirtualService struct {
+	// Name holds the name of the VirtualService
+	Name string `json:"name" protobuf:"bytes,1,opt,name=name"`
+	// A list of HTTP routes within VirtualService to edit. If omitted, VirtualService must have a single route of this type.
+	Routes []string `json:"routes,omitempty" protobuf:"bytes,2,rep,name=routes"`
+	// A list of TLS/HTTPS routes within VirtualService to edit. If omitted, VirtualService must have a single route of this type.
+	TLSRoutes []TLSRoute `json:"tlsRoutes,omitempty" protobuf:"bytes,3,rep,name=tlsRoutes"`
+	// A list of TCP routes within VirtualService to edit. If omitted, VirtualService must have a single route of this type.
+	TCPRoutes []TCPRoute `json:"tcpRoutes,omitempty" protobuf:"bytes,4,rep,name=tcpRoutes"`
+}
+
+// TLSRoute holds the information on the virtual service's TLS/HTTPS routes that are desired to be matched for changing weights.
+type TLSRoute struct {
+	// Port number of the TLS Route desired to be matched in the given Istio VirtualService.
+	Port int64 `json:"port,omitempty" protobuf:"bytes,1,opt,name=port"`
+	// A list of all the SNI Hosts of the TLS Route desired to be matched in the given Istio VirtualService.
+	SNIHosts []string `json:"sniHosts,omitempty" protobuf:"bytes,2,rep,name=sniHosts"`
+}
+
+// TCPRoute holds the information on the virtual service's TCP routes that are desired to be matched for changing weights.
+type TCPRoute struct {
+	// Port number of the TCP Route desired to be matched in the given Istio VirtualService.
+	Port int64 `json:"port,omitempty" protobuf:"bytes,1,opt,name=port"`
+}
+
+// IstioDestinationRule is a reference to an Istio DestinationRule to modify and shape traffic
+type IstioDestinationRule struct {
+	// Name holds the name of the DestinationRule
+	Name string `json:"name" protobuf:"bytes,1,opt,name=name"`
+	// CanarySubsetName is the subset name to modify labels with canary ReplicaSet pod template hash value
+	CanarySubsetName string `json:"canarySubsetName" protobuf:"bytes,2,opt,name=canarySubsetName"`
+	// StableSubsetName is the subset name to modify labels with stable ReplicaSet pod template hash value
+	StableSubsetName string `json:"stableSubsetName" protobuf:"bytes,3,opt,name=stableSubsetName"`
 }
 
 type CanaryStep struct {
@@ -61,6 +124,7 @@ type CanaryStep struct {
 	// +optional
 	SetMirrorRoute *SetMirrorRoute `json:"setMirrorRoute,omitempty" protobuf:"bytes,8,opt,name=setMirrorRoute"`
 	// Plugin defines a plugin to execute for a step
+
 }
 
 type RolloutPause struct {

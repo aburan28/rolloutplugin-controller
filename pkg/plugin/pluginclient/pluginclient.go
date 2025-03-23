@@ -58,10 +58,6 @@ func (t *RolloutPlugin) StartPlugin(pluginName string) (rpc.RolloutPlugin, error
 
 	if t.client[pluginName] == nil || t.client[pluginName].Exited() {
 
-		// pluginPath, args, err := plugin.GetPluginInfo(pluginName, types.PluginTypeRollout)
-		// if err != nil {
-		// 	return nil, fmt.Errorf("unable to find plugin (%s): %w", pluginName, err)
-		// }
 		pluginPath := "./statefulset"
 		fmt.Println("pluginPath: ", pluginPath)
 

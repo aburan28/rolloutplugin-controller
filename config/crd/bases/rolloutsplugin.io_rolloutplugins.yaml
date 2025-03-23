@@ -225,8 +225,122 @@ spec:
                               type: integer
                           type: object
                         type: array
+                      trafficRouting:
+                        properties:
+                          istio:
+                            description: Istio defines the traffic routing for Istio
+                            properties:
+                              destinationRule:
+                                description: DestinationRule holds the name of the
+                                  DestinationRule to use for routing traffic
+                                properties:
+                                  canarySubsetName:
+                                    description: CanarySubsetName is the subset name
+                                      to modify labels with canary ReplicaSet pod
+                                      template hash value
+                                    type: string
+                                  name:
+                                    description: Name holds the name of the DestinationRule
+                                    type: string
+                                  stableSubsetName:
+                                    description: StableSubsetName is the subset name
+                                      to modify labels with stable ReplicaSet pod
+                                      template hash value
+                                    type: string
+                                required:
+                                - canarySubsetName
+                                - name
+                                - stableSubsetName
+                                type: object
+                              managedRoutes:
+                                description: ManagedRoutes holds the list of routes
+                                  that are managed by the Rollout
+                                items:
+                                  type: string
+                                type: array
+                              matchHeaders:
+                                description: RequestHeaders defines the headers to
+                                  use for routing traffic
+                                items:
+                                  type: string
+                                type: array
+                              requestHeaders:
+                                description: RequestHeaders defines the headers to
+                                  use for routing traffic
+                                items:
+                                  type: string
+                                type: array
+                              routeWeight:
+                                description: RouteWeight defines the weight of the
+                                  traffic to the newRS
+                                format: int32
+                                type: integer
+                              virtualService:
+                                description: VirtualService holds the name of the
+                                  VirtualService to use for routing traffic
+                                properties:
+                                  name:
+                                    description: Name holds the name of the VirtualService
+                                    type: string
+                                  routes:
+                                    description: A list of HTTP routes within VirtualService
+                                      to edit. If omitted, VirtualService must have
+                                      a single route of this type.
+                                    items:
+                                      type: string
+                                    type: array
+                                  tcpRoutes:
+                                    description: A list of TCP routes within VirtualService
+                                      to edit. If omitted, VirtualService must have
+                                      a single route of this type.
+                                    items:
+                                      description: TCPRoute holds the information
+                                        on the virtual service's TCP routes that are
+                                        desired to be matched for changing weights.
+                                      properties:
+                                        port:
+                                          description: Port number of the TCP Route
+                                            desired to be matched in the given Istio
+                                            VirtualService.
+                                          format: int64
+                                          type: integer
+                                      type: object
+                                    type: array
+                                  tlsRoutes:
+                                    description: A list of TLS/HTTPS routes within
+                                      VirtualService to edit. If omitted, VirtualService
+                                      must have a single route of this type.
+                                    items:
+                                      description: TLSRoute holds the information
+                                        on the virtual service's TLS/HTTPS routes
+                                        that are desired to be matched for changing
+                                        weights.
+                                      properties:
+                                        port:
+                                          description: Port number of the TLS Route
+                                            desired to be matched in the given Istio
+                                            VirtualService.
+                                          format: int64
+                                          type: integer
+                                        sniHosts:
+                                          description: A list of all the SNI Hosts
+                                            of the TLS Route desired to be matched
+                                            in the given Istio VirtualService.
+                                          items:
+                                            type: string
+                                          type: array
+                                      type: object
+                                    type: array
+                                required:
+                                - name
+                                type: object
+                            required:
+                            - virtualService
+                            type: object
+                        type: object
                     required:
                     - steps
+                    - trafficRouting
                     type: object
                   type:
                     type: string

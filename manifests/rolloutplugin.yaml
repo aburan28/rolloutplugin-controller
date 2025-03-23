@@ -4,6 +4,9 @@ metadata:
   name: rolloutplugin-sample
   namespace: default
 spec:
+  selector:
+    matchLabels:
+      app: nginx
   plugin:
     name: statefulset
     url: http://localhost:8080
@@ -11,5 +14,21 @@ spec:
   strategy:
     type: Canary
     canary:
+      trafficRouting: 
+        istio:
+          virtualService: 
+            name: istio-subset-split-vsvc
+            routes:
+            - primary
+          destinationRule:
+            name: istio-subset-split-destrule
+            canarySubsetName: canary
+            stableSubsetName: stable
       steps:
       - setWeight: 10
+      - pause: {}
+      - setWeight: 20
+      - pause: {}
+      - setWeight: 30
+
+
