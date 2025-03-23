@@ -35,6 +35,8 @@ func init() {
 	gob.RegisterName("rollout.RunArgs", new(RunArgs))
 	gob.RegisterName("rollout.TerminateArgs", new(TerminateArgs))
 	gob.RegisterName("rollout.AbortArgs", new(AbortArgs))
+	gob.RegisterName("rollout.Response", new(Response))
+
 }
 
 type RolloutPlugin interface {
@@ -205,6 +207,26 @@ func (s *RolloutPluginServerRPC) Abort(args any, resp *Response) error {
 		Result: result,
 		Error:  err,
 	}
+	return nil
+}
+
+func (s *RolloutPluginServerRPC) SetWeight(args *v1alpha1.RolloutPlugin, resp *types.RpcError) error {
+	*resp = s.Impl.SetWeight(args)
+	return nil
+}
+
+func (s *RolloutPluginServerRPC) SetMirrorRoute(args *v1alpha1.RolloutPlugin, resp *types.RpcError) error {
+	*resp = s.Impl.SetMirrorRoute(args)
+	return nil
+}
+
+func (s *RolloutPluginServerRPC) Rollback(args *v1alpha1.RolloutPlugin, resp *types.RpcError) error {
+	*resp = s.Impl.Rollback(args)
+	return nil
+}
+
+func (s *RolloutPluginServerRPC) SetCanaryScale(args *v1alpha1.RolloutPlugin, resp *types.RpcError) error {
+	*resp = s.Impl.SetCanaryScale(args)
 	return nil
 }
 
