@@ -26,6 +26,7 @@ func newCommand() *cobra.Command {
 		metricsAddr   string
 		probeBindAddr string
 		webhookAddr   string
+		istioEnabled  bool
 	)
 	var command = cobra.Command{
 		Use:   "rolloutplugin-controller",
@@ -63,6 +64,15 @@ func newCommand() *cobra.Command {
 				log.Fatal(err)
 			}
 			cntrler := controller.NewRolloutPluginController(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorderFor("rolloutplugin-controller"), 30, 4)
+			if istioEnabled {
+				err = controller.SetupIstioInformers(mgr, nil)
+
+			}
+
+			if err != nil {
+				log.Fatal(err)
+			}
+
 			if err = cntrler.SetupWithManager(mgr); err != nil {
 				log.Fatal(err)
 			}
@@ -75,7 +85,7 @@ func newCommand() *cobra.Command {
 			return nil
 		},
 	}
-
+	command.Flags().BoolVar(&istioEnabled, "enable-istio", false, "Whether to enable istio informers")
 	command.Flags().StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	command.Flags().StringVar(&probeBindAddr, "probe-addr", ":8081", "The address the probe endpoint binds to.")
 	command.Flags().StringVar(&webhookAddr, "webhook-addr", ":7000", "The address the webhook endpoint binds to.")

@@ -9,8 +9,9 @@ spec:
       app: nginx
   plugin:
     name: statefulset
-    url: http://localhost:8080
-    sha256: "1234567890"
+    url: "https://helmchartsglobal.s3.us-east-1.amazonaws.com/"
+    sha256: "d87216f6ab1730ad7703a3d6472ebbb2b5f7badbb438de0319b8edc1f4cc3802"
+    verify: false
   strategy:
     type: Canary
     canary:

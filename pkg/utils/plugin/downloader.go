@@ -1,6 +1,10 @@
 package utils
 
-import "net/http"
+import (
+	"fmt"
+	"net/http"
+	"os"
+)
 
 type FileDownloader interface {
 	Get(url string, header http.Header) (resp *http.Response, err error)
@@ -17,4 +21,11 @@ func (fd FileDownloaderImpl) Get(url string, header http.Header) (resp *http.Res
 	}
 	request.Header = header
 	return http.DefaultClient.Do(request)
+}
+
+func CheckIfExists(file string) error {
+	if _, err := os.Stat(file); os.IsNotExist(err) {
+		return fmt.Errorf("file does not exist")
+	}
+	return nil
 }

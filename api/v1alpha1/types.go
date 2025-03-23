@@ -198,6 +198,7 @@ type Plugin struct {
 	Name   string `json:"name"`
 	Sha256 string `json:"sha256"`
 	Url    string `json:"url"`
+	Verify bool   `json:"verify"`
 }
 
 type RolloutPluginStatus struct {

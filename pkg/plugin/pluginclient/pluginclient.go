@@ -1,21 +1,27 @@
 package pluginclient
 
 import (
+	"context"
+	"crypto/sha256"
 	"fmt"
+	"io"
+	"net/http"
+	"os"
 	"os/exec"
 	"sync"
+	"time"
 
 	"github.com/aburan28/rolloutplugin-controller/pkg/plugin/rpc"
 
 	goPlugin "github.com/hashicorp/go-plugin"
 )
 
-type RolloutPlugin struct {
-	client map[string]*goPlugin.Client
-	plugin map[string]rpc.RolloutPlugin
+type rolloutPlugin struct {
+	Client map[string]*goPlugin.Client
+	Plugin map[string]rpc.RolloutPlugin
 }
 
-var pluginClients *RolloutPlugin
+var pluginClients *rolloutPlugin
 var once sync.Once
 var mutex sync.Mutex
 
@@ -31,10 +37,15 @@ var pluginMap = map[string]goPlugin.Plugin{
 	"RpcRolloutPlugin": &rpc.RpcRolloutPlugin{},
 }
 
-func NewRolloutPlugin() *RolloutPlugin {
-	return &RolloutPlugin{
-		client: make(map[string]*goPlugin.Client),
-		plugin: make(map[string]rpc.RolloutPlugin),
+type rolloutPluginMap struct {
+	pluginClient map[string]*goPlugin.Client
+	plugin       map[string]rpc.RolloutPlugin
+}
+
+func NewRolloutPlugin() *rolloutPlugin {
+	return &rolloutPlugin{
+		Client: make(map[string]*goPlugin.Client),
+		Plugin: make(map[string]rpc.RolloutPlugin),
 	}
 }
 
@@ -42,33 +53,30 @@ func GetRolloutPlugin(pluginName string) (rpc.RolloutPlugin, error) {
 	once.Do(func() {
 		pluginClients = NewRolloutPlugin()
 	})
+
 	return pluginClients.StartPlugin(pluginName)
-	// if pluginClients == nil {
-	// 	pluginClients = &RolloutPlugin{
-	// 		client: make(map[string]*goPlugin.Client),
-	// 		plugin: make(map[string]rpc.RolloutPlugin),
-	// 	}
-	// }
-	// return pluginClients.StartPlugin(pluginName)
 }
 
-func (t *RolloutPlugin) StartPlugin(pluginName string) (rpc.RolloutPlugin, error) {
+func (t *rolloutPlugin) StartPlugin(pluginName string) (rpc.RolloutPlugin, error) {
 	mutex.Lock()
 	defer mutex.Unlock()
+	if t.Client[pluginName] == nil || t.Client[pluginName].Exited() {
 
-	if t.client[pluginName] == nil || t.client[pluginName].Exited() {
+		fmt.Println("pluginPath: ", pluginName)
 
-		pluginPath := "./statefulset"
-		fmt.Println("pluginPath: ", pluginPath)
-
-		t.client[pluginName] = goPlugin.NewClient(&goPlugin.ClientConfig{
+		t.Client[pluginName] = goPlugin.NewClient(&goPlugin.ClientConfig{
 			HandshakeConfig: handshakeConfig,
 			Plugins:         pluginMap,
-			Cmd:             exec.Command(pluginPath),
-			Managed:         true,
+			AllowedProtocols: []goPlugin.Protocol{
+				goPlugin.ProtocolNetRPC,
+				goPlugin.ProtocolGRPC,
+			},
+			StartTimeout: 30 * time.Second,
+			Cmd:          exec.Command("./" + pluginName),
+			Managed:      true,
 		})
 
-		rpcClient, err := t.client[pluginName].Client()
+		rpcClient, err := t.Client[pluginName].Client()
 		if err != nil {
 			return nil, fmt.Errorf("unable to get plugin client (%s): %w", pluginName, err)
 		}
@@ -83,15 +91,15 @@ func (t *RolloutPlugin) StartPlugin(pluginName string) (rpc.RolloutPlugin, error
 		if !ok {
 			return nil, fmt.Errorf("unexpected type from plugin")
 		}
-		t.plugin[pluginName] = pluginType
+		t.Plugin[pluginName] = pluginType
 
-		resp := t.plugin[pluginName].InitPlugin()
+		resp := t.Plugin[pluginName].InitPlugin()
 		if resp.HasError() {
 			return nil, fmt.Errorf("unable to initialize plugin via rpc (%s): %w", pluginName, resp)
 		}
 	}
 
-	client, err := t.client[pluginName].Client()
+	client, err := t.Client[pluginName].Client()
 	if err != nil {
 		// If we are not able to create the client, something is utterly wrong
 		// we should try to re-download the plugin and restart because the file
@@ -99,10 +107,53 @@ func (t *RolloutPlugin) StartPlugin(pluginName string) (rpc.RolloutPlugin, error
 		return nil, fmt.Errorf("unable to get plugin client (%s) for ping: %w", pluginName, err)
 	}
 	if err := client.Ping(); err != nil {
-		t.client[pluginName].Kill()
-		t.client[pluginName] = nil
+		t.Client[pluginName].Kill()
+		t.Client[pluginName] = nil
 		return nil, fmt.Errorf("could not ping plugin will cleanup process so we can restart it next reconcile (%w)", err)
 	}
 
-	return t.plugin[pluginName], nil
+	return t.Plugin[pluginName], nil
+}
+
+func DownloadPlugin(ctx context.Context, url string, pluginName string) error {
+
+	pluginUrl := url + pluginName
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pluginUrl, nil)
+	if err != nil {
+		return fmt.Errorf("unable to create plugin download request: %w", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("unable to download plugin: %w", err)
+	}
+
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("unable to read plugin response body: %w", err)
+	}
+
+	err = os.WriteFile(pluginName, body, 0777)
+	if err != nil {
+		return fmt.Errorf("unable to write plugin to file: %w", err)
+	}
+	return nil
+}
+
+func VerifyPlugin(pluginName string, checksum string) error {
+	file, err := os.ReadFile(pluginName)
+	if err != nil {
+		return fmt.Errorf("unable to read plugin file: %w", err)
+	}
+	h := sha256.New()
+	h.Write(file)
+	bs := h.Sum(nil)
+	hash := fmt.Sprintf("%x", bs)
+	if fmt.Sprintf("%x", hash) != checksum {
+		return fmt.Errorf("sha256 hash does not match")
+	}
+	return nil
 }

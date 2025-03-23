@@ -45,10 +45,13 @@ spec:
                     type: string
                   url:
                     type: string
+                  verify:
+                    type: boolean
                 required:
                 - name
                 - sha256
                 - url
+                - verify
                 type: object
               selector:
                 properties:
