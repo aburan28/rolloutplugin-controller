@@ -3,7 +3,6 @@ package controller
 import (
 	"context"
 	"fmt"
-	"time"
 
 	goPlugin "github.com/hashicorp/go-plugin"
 
@@ -103,14 +102,20 @@ func (r *RolloutPluginController) Reconcile(ctx context.Context, req ctrl.Reques
 		// if err != nil {
 		// 	fmt.Println(fmt.Errorf("unable to get plugin (%s): %w", rolloutPlugin.Spec.Plugin.Name, err))
 		// }
+		var pluginInstance rpc.RolloutPlugin
 		if r.plugins == nil {
 			r.plugins = make(map[string]rpc.RolloutPlugin)
 			r.pluginClients = make(map[string]*goPlugin.Client)
 			t := pluginclient.NewRolloutPlugin()
-			t.StartPlugin(rolloutPlugin.Spec.Plugin.Name)
+			pluginInstance, err = t.StartPlugin(rolloutPlugin.Spec.Plugin.Name)
+			if err != nil {
+				fmt.Println(fmt.Errorf("unable to get plugin (%s): %w", rolloutPlugin.Spec.Plugin.Name, err))
+			}
+			r.plugins[rolloutPlugin.Spec.Plugin.Name] = pluginInstance
 			r.plugins[rolloutPlugin.Spec.Plugin.Name] = t.Plugin[rolloutPlugin.Spec.Plugin.Name]
 			r.pluginClients[rolloutPlugin.Spec.Plugin.Name] = t.Client[rolloutPlugin.Spec.Plugin.Name]
 			log.Info("Starting plugin")
+			fmt.Println(r.plugins, r.pluginClients)
 		}
 		log.Info("we have the plugins")
 		fmt.Println(r.plugins, r.pluginClients)
@@ -123,33 +128,28 @@ func (r *RolloutPluginController) Reconcile(ctx context.Context, req ctrl.Reques
 		// 	fmt.Println(fmt.Errorf("unable to initialize plugin (%s): %w", rolloutPlugin.Spec.Plugin.Name, rpcError))
 		// }
 
-		rolloutPlugin.Status.Initialized = true
-		conditions := []v1alpha1.Condition{
-			{
-				Type:               "Initialized",
-				Status:             "True",
-				LastUpdateTime:     metav1.Now(),
-				LastTransitionTime: metav1.Now(),
-			},
-		}
-		rolloutPlugin.Status.Conditions = conditions
-		rolloutPlugin.Status.Initialized = true
-		generation := rolloutPlugin.GetGeneration()
-		rolloutPlugin.Status.ObservedGeneration = generation
-		err = r.Client.Status().Update(ctx, &rolloutPlugin)
-		if err != nil {
-			return ctrl.Result{
-				RequeueAfter: 5 * time.Second,
-			}, err
-		}
-		return ctrl.Result{
-			RequeueAfter: 5 * time.Second,
-		}, nil
+		// rolloutPlugin.Status.Initialized = true
+		// conditions := []v1alpha1.Condition{
+		// 	{
+		// 		Type:               "Initialized",
+		// 		Status:             "True",
+		// 		LastUpdateTime:     metav1.Now(),
+		// 		LastTransitionTime: metav1.Now(),
+		// 	},
+		// }
+		// rolloutPlugin.Status.Conditions = conditions
+		// rolloutPlugin.Status.Initialized = true
+		// generation := rolloutPlugin.GetGeneration()
+		// rolloutPlugin.Status.ObservedGeneration = generation
+		// err = r.Client.Status().Update(ctx, &rolloutPlugin)
+		// r.pluginClients[rolloutPlugin.Spec.Plugin.Name].Client()
 	}
+
+	log.Info("Checking if we need to start the steps")
 
 	generation := rolloutPlugin.GetGeneration()
 	rolloutPlugin.Status.ObservedGeneration = generation
-
+	log.Info("Setting generation")
 	if rolloutPlugin.Status.Conditions == nil {
 		rolloutPlugin.Status.Conditions = []v1alpha1.Condition{
 			{
@@ -160,14 +160,20 @@ func (r *RolloutPluginController) Reconcile(ctx context.Context, req ctrl.Reques
 			},
 		}
 	}
-
+	log.Info("lets start the steps")
 	if rolloutPlugin.Spec.Strategy.Type == "Canary" {
 		for k, _ := range rolloutPlugin.Spec.Strategy.Canary.Steps {
 			log.Info("Setting weight")
 			log.Info(fmt.Sprintf("Step: %d", k))
-			err = r.pluginHandler.SetWeight(&rolloutPlugin)
-			if err != nil {
-				log.Error(err, "unable to set weight")
+			if r.plugins[rolloutPlugin.Spec.Plugin.Name] == nil {
+				log.Info("Plugin is nil")
+
+			}
+			rpcErr := r.plugins[rolloutPlugin.Spec.Plugin.Name].SetWeight(&rolloutPlugin)
+			// rpcError := plugin.SetWeight(rolloutPlugin.Spec.Strategy.Canary.Steps[k].Weight)
+			log.Info("Setting weight post clients")
+			if rpcErr.HasError() {
+				fmt.Println(fmt.Errorf("unable to set weight (%s): %w", rolloutPlugin.Spec.Plugin.Name, rpcErr))
 			}
 			// defer func() {
 			// 	go r.pluginHandler.SetWeight(&rolloutPlugin)
