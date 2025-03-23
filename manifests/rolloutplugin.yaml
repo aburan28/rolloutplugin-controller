@@ -1,7 +1,7 @@
 apiVersion: rolloutsplugin.io/v1alpha1
 kind: RolloutPlugin
 metadata:
-  name: rolloutplugin-sample
+  name: rolloutplugin-sample1
   namespace: default
 spec:
   selector:

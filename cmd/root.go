@@ -8,14 +8,12 @@ import (
 
 	"github.com/aburan28/rolloutplugin-controller/api/v1alpha1"
 	"github.com/aburan28/rolloutplugin-controller/pkg/controller"
-	mgrs "github.com/aburan28/rolloutplugin-controller/pkg/manager"
 
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/zap/zapcore"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/kubernetes"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -23,6 +21,7 @@ import (
 
 func newCommand() *cobra.Command {
 	var (
+		logLevel      string
 		metricsAddr   string
 		probeBindAddr string
 		webhookAddr   string
@@ -32,28 +31,32 @@ func newCommand() *cobra.Command {
 		Use:   "rolloutplugin-controller",
 		Short: "rolloutplugin-controller",
 		RunE: func(c *cobra.Command, args []string) error {
-			ctrl.SetLogger(
-				zap.New(func(o *zap.Options) {
-					o.Level = zapcore.Level(-5)
-				}),
-			)
+			level, err := zapcore.ParseLevel(logLevel)
+			if err != nil {
+				return fmt.Errorf("invalid log level %q: %v", logLevel, err)
+			}
+
+			ctrl.SetLogger(zap.New(func(o *zap.Options) {
+				o.Level = level
+			}))
 			scheme := runtime.NewScheme()
 			if err := v1alpha1.AddToScheme(scheme); err != nil {
 				log.Fatal(err)
 				os.Exit(1)
 			}
 
-			kubeClient, _ := kubernetes.NewForConfig(ctrl.GetConfigOrDie())
-			ctx := context.Background()
+			// kubeClient, _ := kubernetes.NewForConfig(ctrl.GetConfigOrDie())
+			// ctx := context.Background()
 
-			cm := mgrs.NewManager(kubeClient, 8082, 8081)
-			cm.Start(ctx, 3, mgrs.NewLeaderElectionOptions())
+			// cm := mgrs.NewManager(kubeClient, 8082, 8081)
+			// cm.Start(ctx, 3, mgrs.NewLeaderElectionOptions())
 
 			mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), manager.Options{
 				Scheme:                  scheme,
 				LeaderElection:          true,
 				LeaderElectionID:        "rolloutplugin-controller",
 				LeaderElectionNamespace: "default",
+
 				Metrics: metricsserver.Options{
 					BindAddress: metricsAddr,
 				},
@@ -66,12 +69,21 @@ func newCommand() *cobra.Command {
 			cntrler := controller.NewRolloutPluginController(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorderFor("rolloutplugin-controller"), 30, 4)
 			if istioEnabled {
 				err = controller.SetupIstioInformers(mgr, nil)
+				if err != nil {
+					log.Fatal(err)
+				}
 
 			}
 
 			if err != nil {
 				log.Fatal(err)
 			}
+			// Add a shutdown hook to kill plugins on manager stop
+			mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
+				<-ctx.Done() // Wait for stop signal
+				cntrler.Shutdown()
+				return nil
+			}))
 
 			if err = cntrler.SetupWithManager(mgr); err != nil {
 				log.Fatal(err)
@@ -85,6 +97,7 @@ func newCommand() *cobra.Command {
 			return nil
 		},
 	}
+	command.Flags().StringVar(&logLevel, "log-level", "info", "Log level")
 	command.Flags().BoolVar(&istioEnabled, "enable-istio", false, "Whether to enable istio informers")
 	command.Flags().StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	command.Flags().StringVar(&probeBindAddr, "probe-addr", ":8081", "The address the probe endpoint binds to.")

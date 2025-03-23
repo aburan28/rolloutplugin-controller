@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"reflect"
 	"sync"
 	"time"
 
@@ -28,7 +29,7 @@ var mutex sync.Mutex
 var handshakeConfig = goPlugin.HandshakeConfig{
 	ProtocolVersion:  1,
 	MagicCookieKey:   "ARGO_ROLLOUTS_RPC_PLUGIN",
-	MagicCookieValue: "statefulset",
+	MagicCookieValue: "rolloutplugin",
 }
 
 // pluginMap is the map of plugins we can dispense.
@@ -67,11 +68,11 @@ func (t *rolloutPlugin) StartPlugin(pluginName string) (rpc.RolloutPlugin, error
 		t.Client[pluginName] = goPlugin.NewClient(&goPlugin.ClientConfig{
 			HandshakeConfig: handshakeConfig,
 			Plugins:         pluginMap,
-			AllowedProtocols: []goPlugin.Protocol{
-				goPlugin.ProtocolNetRPC,
-				goPlugin.ProtocolGRPC,
-			},
-			StartTimeout: 30 * time.Second,
+			// AllowedProtocols: []goPlugin.Protocol{
+			// 	goPlugin.ProtocolNetRPC,
+			// 	goPlugin.ProtocolGRPC,
+			// },
+			StartTimeout: 90 * time.Second,
 			Cmd:          exec.Command("./" + pluginName),
 			Managed:      true,
 		})
@@ -86,7 +87,7 @@ func (t *rolloutPlugin) StartPlugin(pluginName string) (rpc.RolloutPlugin, error
 		if err != nil {
 			return nil, fmt.Errorf("unable to dispense plugin (%s): %w", pluginName, err)
 		}
-
+		fmt.Println(reflect.TypeOf(plugin))
 		pluginType, ok := plugin.(rpc.RolloutPlugin)
 		if !ok {
 			return nil, fmt.Errorf("unexpected type from plugin")
