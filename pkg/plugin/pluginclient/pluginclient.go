@@ -88,10 +88,14 @@ func (t *rolloutPlugin) StartPlugin(pluginName string) (rpc.RolloutPlugin, error
 			return nil, fmt.Errorf("unable to dispense plugin (%s): %w", pluginName, err)
 		}
 		fmt.Println(reflect.TypeOf(plugin))
-		pluginType, ok := plugin.(rpc.RolloutPlugin)
+		pluginType, ok := plugin.(*rpc.RolloutPluginRPC)
 		if !ok {
 			return nil, fmt.Errorf("unexpected type from plugin")
 		}
+		// pluginType, ok := plugin.(rpc.RolloutPlugin)
+		// if !ok {
+		// 	return nil, fmt.Errorf("unexpected type from plugin")
+		// }
 		t.Plugin[pluginName] = pluginType
 
 		resp := t.Plugin[pluginName].InitPlugin()

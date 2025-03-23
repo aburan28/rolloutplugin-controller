@@ -116,11 +116,38 @@ func (g *RolloutPluginRPC) Type() string {
 	return resp
 }
 
-func (g *RolloutPluginRPC) SetWeight(rollout v1alpha1.RolloutPlugin) types.RpcError {
+func (g *RolloutPluginRPC) SetWeight(rollout *v1alpha1.RolloutPlugin) types.RpcError {
 	var resp types.RpcError
 	err := g.client.Call("Plugin.SetWeight", rollout, &resp)
 	if err != nil {
 		return types.RpcError{ErrorString: fmt.Sprintf("SetWeight rpc call error: %s", err)}
+	}
+	return resp
+}
+
+func (g *RolloutPluginRPC) SetMirrorRoute(rollout *v1alpha1.RolloutPlugin) types.RpcError {
+	var resp types.RpcError
+	err := g.client.Call("Plugin.SetMirrorRoute", rollout, &resp)
+	if err != nil {
+		return types.RpcError{ErrorString: fmt.Sprintf("SetMirrorRoute rpc call error: %s", err)}
+	}
+	return resp
+}
+
+func (g *RolloutPluginRPC) Rollback(rollout *v1alpha1.RolloutPlugin) types.RpcError {
+	var resp types.RpcError
+	err := g.client.Call("Plugin.Rollback", rollout, &resp)
+	if err != nil {
+		return types.RpcError{ErrorString: fmt.Sprintf("Rollback rpc call error: %s", err)}
+	}
+	return resp
+}
+
+func (g *RolloutPluginRPC) SetCanaryScale(rollout *v1alpha1.RolloutPlugin) types.RpcError {
+	var resp types.RpcError
+	err := g.client.Call("Plugin.SetCanaryScale", rollout, &resp)
+	if err != nil {
+		return types.RpcError{ErrorString: fmt.Sprintf("SetCanaryScale rpc call error: %s", err)}
 	}
 	return resp
 }
