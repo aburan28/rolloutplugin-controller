@@ -49,6 +49,7 @@ type RolloutPlugin interface {
 	Terminate(*v1alpha1.RolloutPlugin, types.RpcRolloutContext) (types.RpcRolloutResult, types.RpcError)
 	Abort(*v1alpha1.RolloutPlugin, types.RpcRolloutContext) (types.RpcRolloutResult, types.RpcError)
 	Type() string
+	SetHeaderRoute(*v1alpha1.RolloutPlugin) types.RpcError
 }
 
 // RolloutPluginRPC Here is an implementation that talks over RPC
@@ -135,7 +136,6 @@ func (g *RolloutPluginRPC) SetMirrorRoute(rollout *v1alpha1.RolloutPlugin) types
 	}
 	return resp
 }
-
 func (g *RolloutPluginRPC) Rollback(rollout *v1alpha1.RolloutPlugin) types.RpcError {
 	var resp types.RpcError
 	err := g.client.Call("Plugin.Rollback", rollout, &resp)
@@ -150,6 +150,15 @@ func (g *RolloutPluginRPC) SetCanaryScale(rollout *v1alpha1.RolloutPlugin) types
 	err := g.client.Call("Plugin.SetCanaryScale", rollout, &resp)
 	if err != nil {
 		return types.RpcError{ErrorString: fmt.Sprintf("SetCanaryScale rpc call error: %s", err)}
+	}
+	return resp
+}
+
+func (g *RolloutPluginRPC) SetHeaderRoute(rollout *v1alpha1.RolloutPlugin) types.RpcError {
+	var resp types.RpcError
+	err := g.client.Call("Plugin.SetHeaderRoute", rollout, &resp)
+	if err != nil {
+		return types.RpcError{ErrorString: fmt.Sprintf("SetHeaderRoute rpc call error: %s", err)}
 	}
 	return resp
 }
@@ -233,6 +242,11 @@ func (s *RolloutPluginServerRPC) SetCanaryScale(args *v1alpha1.RolloutPlugin, re
 // Type returns the type of the traffic routing reconciler
 func (s *RolloutPluginServerRPC) Type(args any, resp *string) error {
 	*resp = s.Impl.Type()
+	return nil
+}
+
+func (s *RolloutPluginServerRPC) SetHeaderRoute(args *v1alpha1.RolloutPlugin, resp *types.RpcError) error {
+	*resp = s.Impl.SetHeaderRoute(args)
 	return nil
 }
 

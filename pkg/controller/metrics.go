@@ -59,5 +59,19 @@ func NewMetricsServer(cfg ServerConfig) *MetricsServer {
 			},
 			[]string{"controller"},
 		),
+		rolloutPluginCounter: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "rollout_plugin_total",
+				Help: "Total number of plugin operations.",
+			},
+			[]string{"plugin", "operation"},
+		),
+		rolloutPluginGauge: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "rollout_plugin",
+				Help: "Current state of plugin operations.",
+			},
+			[]string{"plugin", "operation"},
+		),
 	}
 }

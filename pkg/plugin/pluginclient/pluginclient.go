@@ -105,6 +105,7 @@ func (t *rolloutPlugin) StartPlugin(pluginName string) (rpc.RolloutPlugin, error
 	}
 
 	client, err := t.Client[pluginName].Client()
+
 	if err != nil {
 		// If we are not able to create the client, something is utterly wrong
 		// we should try to re-download the plugin and restart because the file

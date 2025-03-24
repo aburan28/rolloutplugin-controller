@@ -127,17 +127,13 @@ func (r *RolloutPluginController) Reconcile(ctx context.Context, req ctrl.Reques
 
 	// Execute the rollout steps if the strategy is Canary
 	if rolloutPlugin.Spec.Strategy.Type == "Canary" {
-		pluginInstance, ok := r.plugins[rolloutPlugin.Spec.Plugin.Name]
-		if !ok || pluginInstance == nil {
-			err := fmt.Errorf("plugin %s is not available", rolloutPlugin.Spec.Plugin.Name)
-			log.Error(err, "Plugin not available")
-			return ctrl.Result{}, err
-		}
 
 		// Iterate through each step and update weight accordingly
 		for i := range rolloutPlugin.Spec.Strategy.Canary.Steps {
 			log.Info("Setting weight", "step", i)
-			rpcErr := pluginInstance.SetWeight(&rolloutPlugin)
+			rpcErr := r.plugins[rolloutPlugin.Spec.Plugin.Name].SetWeight(&rolloutPlugin)
+			// rpcErr := pluginInstance.SetWeight(&rolloutPlugin)
+			// pluginInstance.SetMirrorRoute(&rolloutPlugin)
 			if rpcErr.HasError() {
 				err := fmt.Errorf("unable to set weight for plugin %s: %v", rolloutPlugin.Spec.Plugin.Name, rpcErr)
 				log.Error(err, "Failed to set weight")
