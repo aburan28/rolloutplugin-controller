@@ -27,13 +27,13 @@ type RolloutPlugin struct {
 }
 
 type RolloutPluginSpec struct {
-	Plugin   Plugin   `json:"plugin"`
-	Strategy Strategy `json:"strategy"`
-	Selector Selector `json:"selector"`
+	Plugin   Plugin                `json:"plugin"`
+	Strategy Strategy              `json:"strategy"`
+	Selector *metav1.LabelSelector `json:"selector"`
 }
 
 type Selector struct {
-	MatchLabels map[string]string `json:"matchLabels"`
+	MatchLabels *metav1.LabelSelector `json:"matchLabels"`
 }
 
 type Strategy struct {
@@ -206,6 +206,8 @@ type RolloutPluginStatus struct {
 	Initialized        bool        `json:"initialized"`
 	ObservedGeneration int64       `json:"observedGeneration"`
 	CurrentStepIndex   int32       `json:"currentStepIndex"`
+	CurrentStepHash    string      `json:"currentStepHash"`
+	LastAppliedStep    int32       `json:"lastAppliedStep"`
 }
 
 type Condition struct {
@@ -219,7 +221,13 @@ type Condition struct {
 
 type Steps struct {
 }
+
 type Reason string
+
+const (
+	// InvalidSpecReason indicates that the Rollout has an invalid spec
+	InvalidSpecReason Reason = "InvalidSpec"
+)
 
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:path=rolloutpluginlist,scope=Namespaced

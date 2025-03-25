@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"reflect"
 	"sync"
 	"time"
 
@@ -68,10 +67,10 @@ func (t *rolloutPlugin) StartPlugin(pluginName string) (rpc.RolloutPlugin, error
 		t.Client[pluginName] = goPlugin.NewClient(&goPlugin.ClientConfig{
 			HandshakeConfig: handshakeConfig,
 			Plugins:         pluginMap,
-			// AllowedProtocols: []goPlugin.Protocol{
-			// 	goPlugin.ProtocolNetRPC,
-			// 	goPlugin.ProtocolGRPC,
-			// },
+			AllowedProtocols: []goPlugin.Protocol{
+				goPlugin.ProtocolNetRPC,
+				goPlugin.ProtocolGRPC,
+			},
 			StartTimeout: 90 * time.Second,
 			Cmd:          exec.Command("./" + pluginName),
 			Managed:      true,
@@ -87,7 +86,6 @@ func (t *rolloutPlugin) StartPlugin(pluginName string) (rpc.RolloutPlugin, error
 		if err != nil {
 			return nil, fmt.Errorf("unable to dispense plugin (%s): %w", pluginName, err)
 		}
-		fmt.Println(reflect.TypeOf(plugin))
 		pluginType, ok := plugin.(*rpc.RolloutPluginRPC)
 		if !ok {
 			return nil, fmt.Errorf("unexpected type from plugin")

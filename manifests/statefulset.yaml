@@ -9,7 +9,7 @@ spec:
       component: server
   serviceName: consul
   podManagementPolicy: "Parallel"
-  replicas: 3
+  replicas: 0
   template:
     metadata:
       labels:

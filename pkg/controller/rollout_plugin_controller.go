@@ -67,9 +67,6 @@ func (r *RolloutPluginController) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, k8sclient.IgnoreNotFound(err)
 	}
 
-	// Initialize the plugin if it hasn't been initialized yet
-	// if !rolloutPlugin.Status.Initialized {
-	// Check if plugin binary exists locally
 	if err := utils.CheckIfExists(rolloutPlugin.Spec.Plugin.Name); err != nil {
 		log.Info("Plugin not found locally, attempting to download", "plugin", rolloutPlugin.Spec.Plugin.Name)
 		if err := pluginclient.DownloadPlugin(ctx, rolloutPlugin.Spec.Plugin.Url, rolloutPlugin.Spec.Plugin.Name); err != nil {
@@ -119,7 +116,6 @@ func (r *RolloutPluginController) Reconcile(ctx context.Context, req ctrl.Reques
 		log.Error(err, "Failed to update rolloutPlugin status after initialization")
 		return ctrl.Result{}, err
 	}
-	// }
 
 	// Set the observed generation
 	rolloutPlugin.Status.ObservedGeneration = rolloutPlugin.GetGeneration()
