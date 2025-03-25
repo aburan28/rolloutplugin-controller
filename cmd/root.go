@@ -24,8 +24,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
-	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
 func newCommand() *cobra.Command {
@@ -95,48 +93,48 @@ func newCommand() *cobra.Command {
 			cm.Start(ctx, 3, mgrs.NewLeaderElectionOptions())
 			// cm.StartControllers()
 
-			mgr, err := ctrl.NewManager(clusterConfig, manager.Options{
-				Scheme:                  scheme,
-				LeaderElection:          true,
-				LeaderElectionID:        "rolloutplugin-controller",
-				LeaderElectionNamespace: "default",
+			// mgr, err := ctrl.NewManager(clusterConfig, manager.Options{
+			// 	Scheme:                  scheme,
+			// 	LeaderElection:          true,
+			// 	LeaderElectionID:        "rolloutplugin-controller",
+			// 	LeaderElectionNamespace: "default",
 
-				Metrics: metricsserver.Options{
-					BindAddress: metricsAddr,
-				},
-				HealthProbeBindAddress: probeBindAddr,
-			})
+			// 	Metrics: metricsserver.Options{
+			// 		BindAddress: metricsAddr,
+			// 	},
+			// 	HealthProbeBindAddress: probeBindAddr,
+			// })
 
-			if err != nil {
-				log.Fatal(err)
-			}
-			cntrler := controller.NewRolloutPluginController(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorderFor("rolloutplugin-controller"), 30, 4)
-			if istioEnabled {
-				err = controller.SetupIstioInformers(mgr, nil)
-				if err != nil {
-					log.Fatal(err)
-				}
+			// if err != nil {
+			// 	log.Fatal(err)
+			// }
+			// cntrler := controller.NewRolloutPluginController(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorderFor("rolloutplugin-controller"), 30, 4)
+			// if istioEnabled {
+			// 	err = controller.SetupIstioInformers(mgr, nil)
+			// 	if err != nil {
+			// 		log.Fatal(err)
+			// 	}
 
-			}
+			// }
 
-			if err != nil {
-				log.Fatal(err)
-			}
-			// Add a shutdown hook to kill plugins on manager stop
-			mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
-				<-ctx.Done() // Wait for stop signal
-				cntrler.Shutdown()
-				return nil
-			}))
+			// if err != nil {
+			// 	log.Fatal(err)
+			// }
+			// // Add a shutdown hook to kill plugins on manager stop
+			// mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
+			// 	<-ctx.Done() // Wait for stop signal
+			// 	cntrler.Shutdown()
+			// 	return nil
+			// }))
 
-			if err = cntrler.SetupWithManager(mgr); err != nil {
-				log.Fatal(err)
-			}
+			// if err = cntrler.SetupWithManager(mgr); err != nil {
+			// 	log.Fatal(err)
+			// }
 
-			err = mgr.Start(ctrl.SetupSignalHandler())
-			if err != nil {
-				log.Fatal(err)
-			}
+			// err = mgr.Start(ctrl.SetupSignalHandler())
+			// if err != nil {
+			// 	log.Fatal(err)
+			// }
 
 			return nil
 		},
