@@ -16,6 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -130,9 +131,9 @@ func (m *Manager) Start(ctx context.Context, rolloutPluginThreadiness int, elect
 			log.Error(errors.Wrap(err, "Metric Server Error"))
 		}
 	}()
-	// m.dynamicInformerFactory.Start(ctx.Done())
-	// m.clusterDynamicInformerFactory.Start(ctx.Done())
-	// m.istioDynamicInformerFactory.Start(ctx.Done())
+	m.dynamicInformerFactory.Start(ctx.Done())
+	m.clusterDynamicInformerFactory.Start(ctx.Done())
+	m.istioDynamicInformerFactory.Start(ctx.Done())
 	// m.kubeInformerFactory.Start(ctx.Done())
 
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, 5*time.Second) // give max of 10 seconds for http servers to shut down
@@ -150,9 +151,9 @@ func (m *Manager) Start(ctx context.Context, rolloutPluginThreadiness int, elect
 	return nil
 }
 
-func NewManager(kubeclientset kubernetes.Interface, metricsPort int,
+func NewManager(kubeclientset kubernetes.Interface, dynamicClient *dynamic.DynamicClient, metricsPort int,
 	healthzPort int) *Manager {
-
+	manager := &Manager{}
 	runtime.Must(v1alpha1.AddToScheme(scheme.Scheme))
 	recorder := record.NewBroadcaster().NewRecorder(scheme.Scheme, corev1.EventSource{Component: "rollout-plugin"})
 
@@ -161,18 +162,24 @@ func NewManager(kubeclientset kubernetes.Interface, metricsPort int,
 		Addr: fmt.Sprintf(listenAddr, metricsPort),
 	}
 	metricsServer := controller.NewMetricsServer(serverConfig)
-
 	rolloutPluginWorkqueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "rolloutplugin")
+	// Initialize the informer factories here
+	dynamicInformerFactory := dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, time.Minute)
 
-	return &Manager{
-		wg:                     &sync.WaitGroup{},
-		kubeClientSet:          kubeclientset,
-		metricsServer:          metricsServer,
-		healthzServer:          healthzServer,
-		recorder:               recorder,
-		rolloutPluginWorkqueue: rolloutPluginWorkqueue,
-		// rolloutPluginController: *controller.NewRolloutPluginController(r, scheme.Scheme, recorder, 30, 4),
-	}
+	clusterDynamicInformerFactory := dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, time.Minute)
+	// For optional factories (like Istio), you can initialize conditionally or always create them
+	istioDynamicInformerFactory := dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, time.Minute)
+	manager.wg = &sync.WaitGroup{}
+	manager.kubeClientSet = kubeclientset
+	manager.metricsServer = metricsServer
+	manager.healthzServer = healthzServer
+	manager.recorder = recorder
+	manager.rolloutPluginWorkqueue = rolloutPluginWorkqueue
+	manager.dynamicInformerFactory = dynamicInformerFactory
+	manager.clusterDynamicInformerFactory = clusterDynamicInformerFactory
+	manager.istioDynamicInformerFactory = istioDynamicInformerFactory
+
+	return manager
 }
 
 func (m *Manager) StartControllers() {

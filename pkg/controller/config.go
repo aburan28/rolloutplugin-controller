@@ -7,4 +7,5 @@ type Config struct {
 	KubeConfig              string
 	LogLevel                string
 	LeaderElectionNamespace string
+	IstioEnabled            bool
 }

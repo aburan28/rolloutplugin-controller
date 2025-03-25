@@ -45,6 +45,7 @@ func newCommand() *cobra.Command {
 				ProbeAddr:               probeBindAddr,
 				LogLevel:                logLevel,
 				LeaderElectionNamespace: leaderElectionNamespace,
+				IstioEnabled:            istioEnabled,
 			}
 			fmt.Println(managerConfig)
 			ctx := context.Background()
@@ -82,13 +83,15 @@ func newCommand() *cobra.Command {
 			if err != nil {
 				log.Fatalln(err)
 			}
+
 			resource := schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
 			factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(dynamicClient, time.Minute, corev1.NamespaceAll, nil)
 			informer := factory.ForResource(resource).Informer()
 			stopCh := make(chan struct{})
 
 			go informer.Run(stopCh)
-			cm := mgrs.NewManager(kubeClient, 8082, 8081)
+			cm := mgrs.NewManager(kubeClient, dynamicClient, 8082, 8081)
+
 			fmt.Println("Starting manager")
 			cm.Start(ctx, 3, mgrs.NewLeaderElectionOptions())
 			// cm.StartControllers()
