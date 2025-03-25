@@ -58,8 +58,7 @@ var pluginMap = map[string]goPlugin.Plugin{
 }
 
 func (r *RolloutPluginController) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := ctrl.LoggerFrom(ctx)
-	log.Info("Reconciling RolloutPlugin")
+	log := ctrl.LoggerFrom(ctx).WithValues("rolloutplugin", req.NamespacedName)
 
 	// Retrieve the RolloutPlugin CR
 	var rolloutPlugin v1alpha1.RolloutPlugin

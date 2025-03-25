@@ -27,9 +27,17 @@ type RolloutPlugin struct {
 }
 
 type RolloutPluginSpec struct {
-	Plugin   Plugin                `json:"plugin"`
-	Strategy Strategy              `json:"strategy"`
-	Selector *metav1.LabelSelector `json:"selector"`
+	Plugin       Plugin                `json:"plugin"`
+	Strategy     Strategy              `json:"strategy"`
+	Selector     *metav1.LabelSelector `json:"selector"`
+	ResourceType ResourceType          `json:"resourceType"`
+}
+
+type ResourceType struct {
+	Kind       string `json:"kind"`
+	Group      string `json:"group"`
+	Version    string `json:"version"`
+	Namespaced bool   `json:"namespaced"`
 }
 
 type Selector struct {

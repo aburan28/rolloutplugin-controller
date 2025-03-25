@@ -9,6 +9,7 @@ import (
 
 	"github.com/aburan28/rolloutplugin-controller/api/v1alpha1"
 	"github.com/aburan28/rolloutplugin-controller/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -61,6 +62,7 @@ type Manager struct {
 	istioDynamicInformerFactory   dynamicinformer.DynamicSharedInformerFactory
 	rolloutPluginController       controller.RolloutPluginController
 	recorder                      record.EventRecorder
+	manager                       manager.Manager
 }
 
 type LeaderElectionOptions struct {
@@ -95,7 +97,12 @@ func (m *Manager) startLeading(ctx context.Context, rolloutThreadiness int) {
 	m.clusterDynamicInformerFactory.Start(ctx.Done())
 	m.istioDynamicInformerFactory.Start(ctx.Done())
 	m.kubeInformerFactory.Start(ctx.Done())
-	go wait.Until(func() { m.wg.Add(1); m.rolloutPluginController.Run(ctx); m.wg.Done() }, time.Second, ctx.Done())
+
+	go wait.Until(func() {
+		m.wg.Add(1)
+		m.rolloutPluginController.Run(ctx)
+		m.wg.Done()
+	}, time.Second, ctx.Done())
 
 }
 
@@ -123,11 +130,20 @@ func (m *Manager) Start(ctx context.Context, rolloutPluginThreadiness int, elect
 			log.Error(errors.Wrap(err, "Metric Server Error"))
 		}
 	}()
+	// m.dynamicInformerFactory.Start(ctx.Done())
+	// m.clusterDynamicInformerFactory.Start(ctx.Done())
+	// m.istioDynamicInformerFactory.Start(ctx.Done())
+	// m.kubeInformerFactory.Start(ctx.Done())
 
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, 5*time.Second) // give max of 10 seconds for http servers to shut down
 	defer cancel()
 	m.healthzServer.Shutdown(ctxWithTimeout)
 	m.metricsServer.Shutdown(ctxWithTimeout)
+	go wait.Until(func() {
+		m.wg.Add(1)
+		m.rolloutPluginController.Run(ctx)
+		m.wg.Done()
+	}, time.Second, ctx.Done())
 
 	m.wg.Wait()
 
@@ -157,4 +173,9 @@ func NewManager(kubeclientset kubernetes.Interface, metricsPort int,
 		rolloutPluginWorkqueue: rolloutPluginWorkqueue,
 		// rolloutPluginController: *controller.NewRolloutPluginController(r, scheme.Scheme, recorder, 30, 4),
 	}
+}
+
+func (m *Manager) StartControllers() {
+	m.rolloutController = *controller.NewRolloutPluginController(m.manager.GetClient(), scheme.Scheme, m.recorder, 30, 4)
+	m.rolloutController.Run(context.Background())
 }
