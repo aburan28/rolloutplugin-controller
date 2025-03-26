@@ -53,6 +53,22 @@ spec:
                 - url
                 - verify
                 type: object
+              resourceType:
+                properties:
+                  group:
+                    type: string
+                  kind:
+                    type: string
+                  namespaced:
+                    type: boolean
+                  version:
+                    type: string
+                required:
+                - group
+                - kind
+                - namespaced
+                - version
+                type: object
               selector:
                 description: |-
                   A label selector is a label query over a set of resources. The result of matchLabels and
@@ -393,6 +409,7 @@ spec:
                 type: object
             required:
             - plugin
+            - resourceType
             - selector
             - strategy
             type: object

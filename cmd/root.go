@@ -5,25 +5,20 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
 
 	"github.com/aburan28/rolloutplugin-controller/api/v1alpha1"
 	"github.com/aburan28/rolloutplugin-controller/pkg/controller"
-
-	mgrs "github.com/aburan28/rolloutplugin-controller/pkg/manager"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap/zapcore"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/dynamic/dynamicinformer"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
 func newCommand() *cobra.Command {
@@ -48,7 +43,7 @@ func newCommand() *cobra.Command {
 				IstioEnabled:            istioEnabled,
 			}
 			fmt.Println(managerConfig)
-			ctx := context.Background()
+			// ctx := context.Background()
 			level, err := zapcore.ParseLevel(logLevel)
 			if err != nil {
 				return fmt.Errorf("invalid log level %q: %v", logLevel, err)
@@ -62,6 +57,12 @@ func newCommand() *cobra.Command {
 				log.Fatal(err)
 				os.Exit(1)
 			}
+			if err := corev1.AddToScheme(scheme); err != nil {
+				log.Fatal(err)
+			}
+			if err := appsv1.AddToScheme(scheme); err != nil {
+				log.Fatal(err)
+			}
 
 			var clusterConfig *rest.Config
 			kubeConfig := viper.GetString("kubeconfig")
@@ -74,70 +75,72 @@ func newCommand() *cobra.Command {
 				log.Fatalln(err)
 			}
 
-			kubeClient, err := kubernetes.NewForConfig(clusterConfig)
-			// ctx := context.Background()
+			// kubeClient, err := kubernetes.NewForConfig(clusterConfig)
+			// // ctx := context.Background()
+			// if err != nil {
+			// 	log.Fatalln(err)
+			// }
+			// dynamicClient, err := dynamic.NewForConfig(clusterConfig)
+			// if err != nil {
+			// 	log.Fatalln(err)
+			// }
+
+			// fmt.Println("Starting manager")
+
+			mgr, err := ctrl.NewManager(clusterConfig, ctrl.Options{Scheme: scheme})
 			if err != nil {
-				log.Fatalln(err)
+				log.Fatal(err)
 			}
-			dynamicClient, err := dynamic.NewForConfig(clusterConfig)
-			if err != nil {
-				log.Fatalln(err)
-			}
+			// client := mgr.GetClient()
+			// rolloutController := controller.NewRolloutPluginController(client, scheme, nil, 30, 4)
 
-			resource := schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
-			factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(dynamicClient, time.Minute, corev1.NamespaceAll, nil)
-			informer := factory.ForResource(resource).Informer()
-			stopCh := make(chan struct{})
+			// cm := mgrs.NewManager(kubeClient, dynamicClient, 8082, 8081, *rolloutController, mgr)
+			// fmt.Println("Starting manager", cm)
+			// // cm.Start(ctx, 3, mgrs.NewLeaderElectionOptions())
 
-			go informer.Run(stopCh)
-			cm := mgrs.NewManager(kubeClient, dynamicClient, 8082, 8081)
+			// // cm.StartControllers()
 
-			fmt.Println("Starting manager")
-			cm.Start(ctx, 3, mgrs.NewLeaderElectionOptions())
-			// cm.StartControllers()
-
-			// mgr, err := ctrl.NewManager(clusterConfig, manager.Options{
+			// mgr, err = ctrl.NewManager(clusterConfig, manager.Options{
 			// 	Scheme:                  scheme,
 			// 	LeaderElection:          true,
 			// 	LeaderElectionID:        "rolloutplugin-controller",
-			// 	LeaderElectionNamespace: "default",
-
+			// 	LeaderElectionNamespace: leaderElectionNamespace,
 			// 	Metrics: metricsserver.Options{
 			// 		BindAddress: metricsAddr,
 			// 	},
 			// 	HealthProbeBindAddress: probeBindAddr,
 			// })
 
-			// if err != nil {
-			// 	log.Fatal(err)
-			// }
-			// cntrler := controller.NewRolloutPluginController(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorderFor("rolloutplugin-controller"), 30, 4)
-			// if istioEnabled {
-			// 	err = controller.SetupIstioInformers(mgr, nil)
-			// 	if err != nil {
-			// 		log.Fatal(err)
-			// 	}
+			if err != nil {
+				log.Fatal(err)
+			}
+			rolloutPluginController := controller.NewRolloutPluginController(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorderFor("rolloutplugin-controller"), 30, 4)
+			if istioEnabled {
+				err = controller.SetupIstioInformers(mgr, nil)
+				if err != nil {
+					log.Fatal(err)
+				}
 
-			// }
+			}
 
-			// if err != nil {
-			// 	log.Fatal(err)
-			// }
-			// // Add a shutdown hook to kill plugins on manager stop
-			// mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
-			// 	<-ctx.Done() // Wait for stop signal
-			// 	cntrler.Shutdown()
-			// 	return nil
-			// }))
+			if err != nil {
+				log.Fatal(err)
+			}
+			// Add a shutdown hook to kill plugins on manager stop
+			mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
+				<-ctx.Done() // Wait for stop signal
+				rolloutPluginController.Shutdown()
+				return nil
+			}))
 
-			// if err = cntrler.SetupWithManager(mgr); err != nil {
-			// 	log.Fatal(err)
-			// }
+			if err = rolloutPluginController.SetupWithManager(mgr); err != nil {
+				log.Fatal(err)
+			}
 
-			// err = mgr.Start(ctrl.SetupSignalHandler())
-			// if err != nil {
-			// 	log.Fatal(err)
-			// }
+			err = mgr.Start(ctrl.SetupSignalHandler())
+			if err != nil {
+				log.Fatal(err)
+			}
 
 			return nil
 		},

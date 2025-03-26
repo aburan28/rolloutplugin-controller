@@ -9,14 +9,13 @@ import (
 
 	"github.com/aburan28/rolloutplugin-controller/api/v1alpha1"
 	"github.com/aburan28/rolloutplugin-controller/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
-
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/dynamic"
+
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -24,6 +23,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/kubectl/pkg/scheme"
+	mgr "sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
 const (
@@ -49,21 +49,26 @@ const (
 
 type Manager struct {
 	wg                            *sync.WaitGroup
-	rolloutPluginSynced           cache.InformerSynced
 	kubeClientSet                 kubernetes.Interface
 	metricsServer                 *controller.MetricsServer
 	healthzServer                 *http.Server
 	informer                      cache.SharedIndexInformer
 	indexer                       cache.Indexer
 	rolloutPluginWorkqueue        workqueue.TypedRateLimitingInterface[any]
-	rolloutController             controller.RolloutPluginController
 	kubeInformerFactory           informers.SharedInformerFactory
 	dynamicInformerFactory        dynamicinformer.DynamicSharedInformerFactory
 	clusterDynamicInformerFactory dynamicinformer.DynamicSharedInformerFactory
 	istioDynamicInformerFactory   dynamicinformer.DynamicSharedInformerFactory
 	rolloutPluginController       controller.RolloutPluginController
 	recorder                      record.EventRecorder
-	manager                       manager.Manager
+	Manager                       mgr.Manager
+
+	rolloutPluginSynced   cache.InformerSynced
+	deploymentSynced      cache.InformerSynced
+	replicaSetSynced      cache.InformerSynced
+	rolloutPluginInformer cache.SharedIndexInformer
+	deploymentInformer    cache.SharedIndexInformer
+	replicaSetInformer    cache.SharedIndexInformer
 }
 
 type LeaderElectionOptions struct {
@@ -101,7 +106,7 @@ func (m *Manager) startLeading(ctx context.Context, rolloutThreadiness int) {
 
 	go wait.Until(func() {
 		m.wg.Add(1)
-		m.rolloutPluginController.Run(ctx)
+		m.rolloutPluginController.Run(ctx, 3)
 		m.wg.Done()
 	}, time.Second, ctx.Done())
 
@@ -131,29 +136,46 @@ func (m *Manager) Start(ctx context.Context, rolloutPluginThreadiness int, elect
 			log.Error(errors.Wrap(err, "Metric Server Error"))
 		}
 	}()
-	m.dynamicInformerFactory.Start(ctx.Done())
-	m.clusterDynamicInformerFactory.Start(ctx.Done())
-	m.istioDynamicInformerFactory.Start(ctx.Done())
+	go m.dynamicInformerFactory.Start(ctx.Done())
+	go m.clusterDynamicInformerFactory.Start(ctx.Done())
+	go m.istioDynamicInformerFactory.Start(ctx.Done())
+
 	// m.kubeInformerFactory.Start(ctx.Done())
+	go func() {
+		m.rolloutPluginController.Run(ctx, 3)
+	}()
+	// go wait.Until(func() {
+	// 	m.wg.Add(1)
+	// 	m.rolloutPluginController.Run(ctx, 3)
+	// 	m.wg.Done()
+	// }, time.Second, ctx.Done())
+	<-ctx.Done()
 
-	ctxWithTimeout, cancel := context.WithTimeout(ctx, 5*time.Second) // give max of 10 seconds for http servers to shut down
+	// Once context is canceled, gracefully shut down servers
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	m.healthzServer.Shutdown(ctxWithTimeout)
-	m.metricsServer.Shutdown(ctxWithTimeout)
-	go wait.Until(func() {
-		m.wg.Add(1)
-		m.rolloutPluginController.Run(ctx)
-		m.wg.Done()
-	}, time.Second, ctx.Done())
-
+	if err := m.healthzServer.Shutdown(ctxWithTimeout); err != nil {
+		log.Errorf("Healthz Server Shutdown Error: %v", err)
+	}
+	if err := m.metricsServer.Shutdown(ctxWithTimeout); err != nil {
+		log.Errorf("Metrics Server Shutdown Error: %v", err)
+	}
+	log.Info("Waiting for controller's informer caches to sync")
+	if ok := cache.WaitForCacheSync(ctx.Done(), m.deploymentSynced, m.replicaSetSynced, m.rolloutPluginSynced); !ok {
+		log.Fatalf("failed to wait for caches to sync, exiting")
+	}
 	m.wg.Wait()
+
+	go wait.Until(func() { m.wg.Add(1); m.rolloutPluginController.Run(ctx, 3); m.wg.Done() }, time.Second, ctx.Done())
 
 	return nil
 }
 
-func NewManager(kubeclientset kubernetes.Interface, dynamicClient *dynamic.DynamicClient, metricsPort int,
-	healthzPort int) *Manager {
+func NewManager(kubeclientset kubernetes.Interface, dynamicClient dynamic.Interface, metricsPort int,
+	healthzPort int, rolloutPluginController controller.RolloutPluginController, mgr mgr.Manager) *Manager {
+
 	manager := &Manager{}
+	manager.Manager = mgr
 	runtime.Must(v1alpha1.AddToScheme(scheme.Scheme))
 	recorder := record.NewBroadcaster().NewRecorder(scheme.Scheme, corev1.EventSource{Component: "rollout-plugin"})
 
@@ -167,8 +189,8 @@ func NewManager(kubeclientset kubernetes.Interface, dynamicClient *dynamic.Dynam
 	dynamicInformerFactory := dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, time.Minute)
 
 	clusterDynamicInformerFactory := dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, time.Minute)
-	// For optional factories (like Istio), you can initialize conditionally or always create them
 	istioDynamicInformerFactory := dynamicinformer.NewDynamicSharedInformerFactory(dynamicClient, time.Minute)
+	manager.rolloutPluginController = rolloutPluginController
 	manager.wg = &sync.WaitGroup{}
 	manager.kubeClientSet = kubeclientset
 	manager.metricsServer = metricsServer
@@ -183,6 +205,5 @@ func NewManager(kubeclientset kubernetes.Interface, dynamicClient *dynamic.Dynam
 }
 
 func (m *Manager) StartControllers() {
-	m.rolloutController = *controller.NewRolloutPluginController(m.manager.GetClient(), scheme.Scheme, m.recorder, 30, 4)
-	m.rolloutController.Run(context.Background())
+
 }
