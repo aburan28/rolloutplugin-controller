@@ -9,3 +9,7 @@ type Config struct {
 	LeaderElectionNamespace string
 	IstioEnabled            bool
 }
+
+const (
+	FinalizerName = "rolloutsplugin.io/finalizer"
+)

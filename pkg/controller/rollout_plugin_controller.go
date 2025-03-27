@@ -21,6 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	k8sclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	controllerutils "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 // PhasedRolloutReconciler reconciles a PhasedRollout object.
@@ -89,6 +90,24 @@ func (r *RolloutPluginController) Reconcile(ctx context.Context, req ctrl.Reques
 			log.Error(err, "Failed to download plugin", "plugin", rolloutPlugin.Spec.Plugin.Name)
 			return ctrl.Result{}, err
 		}
+	}
+
+	if deletionTimestamp := rolloutPlugin.GetDeletionTimestamp(); deletionTimestamp != nil {
+		log.Info("Deleting plugin", "plugin", rolloutPlugin.Spec.Plugin.Name)
+		if controllerutils.ContainsFinalizer(&rolloutPlugin, FinalizerName) {
+			// Remove the finalizer from the CR
+			controllerutils.RemoveFinalizer(&rolloutPlugin, FinalizerName)
+
+			if err := r.Client.Update(ctx, &rolloutPlugin); err != nil {
+				log.Error(err, "Failed to remove finalizer from rolloutPlugin", "plugin", rolloutPlugin.Spec.Plugin.Name)
+				return ctrl.Result{}, err
+			}
+		}
+		// // Stop the plugin and remove it from the controller maps
+		// if err := pluginclient.DeletePlugin(rolloutPlugin.Spec.Plugin.Name); err != nil {
+		// 	log.Error(err, "Failed to delete plugin", "plugin", rolloutPlugin.Spec.Plugin.Name)
+		// 	return ctrl.Result{}, err
+		// }
 	}
 
 	// Optionally verify the plugin binary if verification is enabled
