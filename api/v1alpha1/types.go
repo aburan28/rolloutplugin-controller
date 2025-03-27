@@ -245,3 +245,19 @@ type RolloutPluginList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []RolloutPlugin `json:"items"`
 }
+
+func (p *RolloutPlugin) GetGeneration() int64 {
+	return p.Generation
+}
+
+func (p *RolloutPlugin) SetGeneration(generation int64) {
+	p.Generation = generation
+}
+
+func (p *RolloutPlugin) ContainsFinalizer() bool {
+	return len(p.Finalizers) > 0
+}
+
+func (p *RolloutPlugin) RemoveFinalizer() {
+	p.Finalizers = []string{}
+}

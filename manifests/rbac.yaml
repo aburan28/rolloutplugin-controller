@@ -1,0 +1,28 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sa
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: deployment-informer
+rules:
+- apiGroups: ["apps/v1"]
+  resources: ["deployments"]
+  verbs: ["get", "watch", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: read-secrets-global
+subjects:
+- kind: ServiceAccount
+  name: sa
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: deployment-informer
+  apiGroup: rbac.authorization.k8s.io
