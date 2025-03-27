@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"time"
 
-	goPlugin "github.com/hashicorp/go-plugin"
-
 	"github.com/aburan28/rolloutplugin-controller/api/v1alpha1"
 	"github.com/aburan28/rolloutplugin-controller/pkg/plugin/pluginclient"
 	"github.com/aburan28/rolloutplugin-controller/pkg/plugin/rpc"
 	utils "github.com/aburan28/rolloutplugin-controller/pkg/utils/plugin"
+	goPlugin "github.com/hashicorp/go-plugin"
+	networkingv1alpha3 "istio.io/client-go/pkg/apis/networking/v1alpha3"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -50,7 +50,10 @@ func (r *RolloutPluginController) SetupWithManager(mgr ctrl.Manager) error {
 		&appsv1.DaemonSet{},
 		&appsv1.StatefulSet{},
 		&appsv1.ReplicaSet{},
+		&networkingv1alpha3.VirtualService{},
+		&networkingv1alpha3.DestinationRule{},
 	}
+
 	for _, resource := range ownedResources {
 		builder.Owns(resource)
 	}
