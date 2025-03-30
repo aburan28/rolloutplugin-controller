@@ -454,12 +454,11 @@ spec:
               observedGeneration:
                 format: int64
                 type: integer
+              rolloutInProgress:
+                type: boolean
             required:
             - conditions
-            - currentStepHash
-            - currentStepIndex
             - initialized
-            - lastAppliedStep
             - observedGeneration
             type: object
         type: object

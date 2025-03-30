@@ -41,6 +41,7 @@ func (r *RolloutPluginController) SetupWithManager(mgr ctrl.Manager) error {
 	builder := ctrl.NewControllerManagedBy(mgr).
 		WithOptions(controller.Options{MaxConcurrentReconciles: r.MaxConcurrent}).
 		For(&v1alpha1.RolloutPlugin{})
+
 	ownedResources := []client.Object{
 		&corev1.Pod{},
 		&corev1.PodTemplate{},
@@ -98,7 +99,9 @@ func (r *RolloutPluginController) Reconcile(ctx context.Context, req ctrl.Reques
 	if deletionTimestamp := rolloutPlugin.GetDeletionTimestamp(); deletionTimestamp != nil {
 		log.Info("Deleting plugin", "plugin", rolloutPlugin.Spec.Plugin.Name)
 		if controllerutils.ContainsFinalizer(&rolloutPlugin, FinalizerName) {
+			go r.pluginClients[rolloutPlugin.Spec.Plugin.Name].Kill()
 			// Remove the finalizer from the CR
+
 			controllerutils.RemoveFinalizer(&rolloutPlugin, FinalizerName)
 
 			if err := r.Client.Update(ctx, &rolloutPlugin); err != nil {
@@ -134,24 +137,34 @@ func (r *RolloutPluginController) Reconcile(ctx context.Context, req ctrl.Reques
 		r.pluginClients[rolloutPlugin.Spec.Plugin.Name] = t.Client[rolloutPlugin.Spec.Plugin.Name]
 		r.plugins[rolloutPlugin.Spec.Plugin.Name] = pInstance
 		if err != nil {
-			log.Error(err, "Unable to start plugin", "plugin", rolloutPlugin.Spec.Plugin.Name)
+
+			condition := v1alpha1.Condition{
+				Type:    v1alpha1.RolloutPluginConditionTypeInitialized,
+				Status:  v1alpha1.RolloutPluginConditionStatusFalse,
+				Reason:  "PluginInitializationFailed",
+				Message: "Plugin initialization failed",
+			}
+			rolloutPlugin.Status.RolloutInProgress = false
+			r.SetConditions(&rolloutPlugin, condition)
+			log.Error(err, "Failed to initialize plugin", "plugin", rolloutPlugin.Spec.Plugin.Name)
 			return ctrl.Result{}, err
 		}
+		// Mark as initialized and update conditions
+		rolloutPlugin.Status.Initialized = true
+		condition := v1alpha1.Condition{
+			Type:    v1alpha1.RolloutPluginConditionTypeInitialized,
+			Status:  v1alpha1.RolloutPluginConditionStatusUnknown,
+			Reason:  "PluginInitialized",
+			Message: "Plugin initialized successfully",
+		}
+		r.SetConditions(&rolloutPlugin, condition)
+		log.Info("Plugin initialized successfully", "plugin", rolloutPlugin.Spec.Plugin.Name)
+
 	}
 
-	// Mark as initialized and update conditions
-	rolloutPlugin.Status.Initialized = true
-	rolloutPlugin.Status.Conditions = []v1alpha1.Condition{{
-		Type:               "Initialized",
-		Status:             "True",
-		LastUpdateTime:     metav1.Now(),
-		LastTransitionTime: metav1.Now(),
-	}}
-
-	// Update status after initialization
-	rolloutPlugin.Status.ObservedGeneration = rolloutPlugin.GetGeneration()
-	if err := r.Client.Status().Update(ctx, &rolloutPlugin); err != nil {
-		log.Error(err, "Failed to update rolloutPlugin status after initialization")
+	controllerutils.AddFinalizer(&rolloutPlugin, FinalizerName)
+	if err := r.Client.Update(ctx, &rolloutPlugin); err != nil {
+		log.Error(err, "Failed to add finalizer to rolloutPlugin", "plugin", rolloutPlugin.Spec.Plugin.Name)
 		return ctrl.Result{}, err
 	}
 
@@ -161,11 +174,12 @@ func (r *RolloutPluginController) Reconcile(ctx context.Context, req ctrl.Reques
 
 	// Execute the rollout steps if the strategy is Canary
 	if rolloutPlugin.Spec.Strategy.Type == "Canary" {
-
+		log.Info("Executing rollout steps for plugin", "plugin", rolloutPlugin.Spec.Plugin.Name)
 		// Iterate through each step and update weight accordingly
 		for i := range rolloutPlugin.Spec.Strategy.Canary.Steps {
 			log.Info("Setting weight", "step", i)
 			rpcErr := r.plugins[rolloutPlugin.Spec.Plugin.Name].SetWeight(&rolloutPlugin)
+
 			// rpcErr := pluginInstance.SetWeight(&rolloutPlugin)
 			// pluginInstance.SetMirrorRoute(&rolloutPlugin)
 			if rpcErr.HasError() {
@@ -189,14 +203,20 @@ func (r *RolloutPluginController) Reconcile(ctx context.Context, req ctrl.Reques
 	}, nil
 }
 
-func (r *RolloutPluginController) SetConditions(rolloutPlugin *v1alpha1.RolloutPlugin) {
-
+func (r *RolloutPluginController) SetConditions(rolloutPlugin *v1alpha1.RolloutPlugin, condition v1alpha1.Condition) {
+	condition.LastUpdateTime = metav1.Now()
+	condition.LastTransitionTime = metav1.Now()
+	rolloutPlugin.Status.Conditions = append(rolloutPlugin.Status.Conditions, condition)
+	if err := r.Client.Status().Update(context.Background(), rolloutPlugin); err != nil {
+		ctrl.LoggerFrom(context.Background()).Error(err, "Failed to update rolloutPlugin status")
+	}
 }
 
 func (r *RolloutPluginController) Shutdown() {
 	for _, client := range r.pluginClients {
-
-		client.Kill()
+		if client != nil {
+			client.Kill()
+		}
 	}
 }
 

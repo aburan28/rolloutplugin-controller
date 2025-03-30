@@ -21,13 +21,11 @@ func SetupIstioInformers(mgr ctrl.Manager, stopCh <-chan struct{}) error {
 	// Get the REST config from the manager.
 	config := mgr.GetConfig()
 
-	// Create a dynamic client.
 	dynClient, err := dynamic.NewForConfig(config)
 	if err != nil {
 		return fmt.Errorf("failed to create dynamic client: %w", err)
 	}
 
-	// Define the GroupVersionResource for VirtualService and DestinationRule.
 	virtualServiceGVR := schema.GroupVersionResource{
 		Group:    "networking.istio.io",
 		Version:  "v1alpha3",

@@ -1,0 +1,5 @@
+apiVersion: rolloutplugin.io/v1alpha1
+kind: Revision
+metadata:
+  name: revision
+  namespace: default

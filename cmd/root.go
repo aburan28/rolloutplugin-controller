@@ -11,12 +11,14 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap/zapcore"
+	networkingv1alpha3 "istio.io/client-go/pkg/apis/networking/v1alpha3"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
+
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
@@ -61,6 +63,10 @@ func newCommand() *cobra.Command {
 				log.Fatal(err)
 			}
 			if err := appsv1.AddToScheme(scheme); err != nil {
+				log.Fatal(err)
+			}
+
+			if err := networkingv1alpha3.AddToScheme(scheme); err != nil {
 				log.Fatal(err)
 			}
 
@@ -115,6 +121,8 @@ func newCommand() *cobra.Command {
 				log.Fatal(err)
 			}
 			rolloutPluginController := controller.NewRolloutPluginController(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorderFor("rolloutplugin-controller"), 30, 4)
+
+			revisionController := controller.NewRevisionControler(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorderFor("rolloutplugin-controller"), 30, 4)
 			if istioEnabled {
 				err = controller.SetupIstioInformers(mgr, nil)
 				if err != nil {
@@ -134,6 +142,10 @@ func newCommand() *cobra.Command {
 			}))
 
 			if err = rolloutPluginController.SetupWithManager(mgr); err != nil {
+				log.Fatal(err)
+			}
+
+			if err = revisionController.SetupWithManager(mgr); err != nil {
 				log.Fatal(err)
 			}
 

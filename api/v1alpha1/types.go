@@ -12,6 +12,7 @@ import (
 func init() {
 	myscheme := runtime.NewScheme()
 	SchemeBuilder.Register(&RolloutPlugin{}, &RolloutPluginList{})
+	SchemeBuilder.Register(&Revision{}, &RevisionList{})
 	utilruntime.Must(AddToScheme(myscheme))
 }
 
@@ -24,6 +25,37 @@ type RolloutPlugin struct {
 
 	Spec   RolloutPluginSpec   `json:"spec,omitempty"`
 	Status RolloutPluginStatus `json:"status,omitempty"`
+}
+
+// +kubebuilder:object:root=true
+// +kubebuilder:resource:path=revisions,scope=Namespaced
+// +kubebuilder:subresource:status
+type Revision struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   RevisionSpec   `json:"spec,omitempty"`
+	Status RevisionStatus `json:"status,omitempty"`
+}
+
+type RevisionSpec struct {
+	Selector *metav1.LabelSelector `json:"selector,omitempty"`
+	Template *metav1.LabelSelector `json:"template,omitempty"`
+}
+
+type RevisionStatus struct {
+	Conditions         []Condition `json:"conditions"`
+	Initialized        bool        `json:"initialized"`
+	ObservedGeneration int64       `json:"observedGeneration"`
+}
+
+// +kubebuilder:object:root=true
+// +kubebuilder:resource:path=revisionlist,scope=Namespaced
+// +kubebuilder:subresource:status
+type RevisionList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []RevisionList `json:"items"`
 }
 
 type RolloutPluginSpec struct {
@@ -213,19 +245,44 @@ type RolloutPluginStatus struct {
 	Conditions         []Condition `json:"conditions"`
 	Initialized        bool        `json:"initialized"`
 	ObservedGeneration int64       `json:"observedGeneration"`
-	CurrentStepIndex   int32       `json:"currentStepIndex"`
-	CurrentStepHash    string      `json:"currentStepHash"`
-	LastAppliedStep    int32       `json:"lastAppliedStep"`
+	CurrentStepIndex   int32       `json:"currentStepIndex,omitempty"`
+	CurrentStepHash    string      `json:"currentStepHash,omitempty"`
+	LastAppliedStep    int32       `json:"lastAppliedStep,omitempty"`
+	RolloutInProgress  bool        `json:"rolloutInProgress,omitempty"`
 }
 
 type Condition struct {
-	Type               string      `json:"type"`
-	Status             string      `json:"status"`
-	LastUpdateTime     metav1.Time `json:"lastUpdateTime" protobuf:"bytes,3,opt,name=lastUpdateTime"`
-	LastTransitionTime metav1.Time `json:"lastTransitionTime" protobuf:"bytes,4,opt,name=lastTransitionTime"`
-	Reason             Reason      `json:"reason"`
-	Message            string      `json:"message"`
+	Type               RolloutPluginConditionType   `json:"type"`
+	Status             RolloutPluginConditionStatus `json:"status"`
+	LastUpdateTime     metav1.Time                  `json:"lastUpdateTime" protobuf:"bytes,3,opt,name=lastUpdateTime"`
+	LastTransitionTime metav1.Time                  `json:"lastTransitionTime" protobuf:"bytes,4,opt,name=lastTransitionTime"`
+	Reason             Reason                       `json:"reason"`
+	Message            string                       `json:"message"`
 }
+
+type RolloutPluginConditionType string
+
+const (
+	RolloutPluginConditionTypeInitialized RolloutPluginConditionType = "Initialized"
+	RolloutPluginConditionTypeProgressing RolloutPluginConditionType = "Progressing"
+	RolloutPluginConditionTypeHealthy     RolloutPluginConditionType = "Healthy"
+	RolloutPluginConditionTypeDegraded    RolloutPluginConditionType = "Degraded"
+	RolloutPluginConditionTypePaused      RolloutPluginConditionType = "Paused"
+	RolloutPluginConditionTypeFailed      RolloutPluginConditionType = "Failed"
+)
+
+type RolloutPluginConditionStatus string
+
+const (
+	RolloutPluginConditionStatusProgressing RolloutPluginConditionStatus = "Progressing"
+	RolloutPluginConditionStatusHealthy     RolloutPluginConditionStatus = "Healthy"
+	RolloutPluginConditionStatusDegraded    RolloutPluginConditionStatus = "Degraded"
+	RolloutPluginConditionStatusPaused      RolloutPluginConditionStatus = "Paused"
+	RolloutPluginConditionStatusFailed      RolloutPluginConditionStatus = "Failed"
+	RolloutPluginConditionStatusUnknown     RolloutPluginConditionStatus = "Unknown"
+	RolloutPluginConditionStatusAborted     RolloutPluginConditionStatus = "Aborted"
+	RolloutPluginConditionStatusFalse       RolloutPluginConditionStatus = "False"
+)
 
 type Steps struct {
 }

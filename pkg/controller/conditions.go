@@ -13,9 +13,9 @@ import (
 const ()
 
 func ComputeStepHash(rollout v1alpha1.RolloutPlugin) string {
-	if rollout.Spec.Strategy.BlueGreen != nil || rollout.Spec.Strategy.Canary == nil {
-		return ""
-	}
+	// if rollout.Spec.Strategy.Canary == nil {
+	// 	return ""
+	// }
 	rolloutStepHasher := fnv.New32a()
 	stepsBytes, err := json.Marshal(rollout.Spec.Strategy.Canary.Steps)
 	if err != nil {
