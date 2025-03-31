@@ -2,10 +2,10 @@ package controller
 
 import (
 	"context"
+	"time"
 
 	"github.com/aburan28/rolloutplugin-controller/api/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/tools/record"
@@ -13,7 +13,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	k8sclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
-	controllerutils "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 type RevisionController struct {
@@ -28,21 +29,77 @@ type RevisionController struct {
 func (r *RevisionController) SetupWithManager(mgr ctrl.Manager) error {
 	builder := ctrl.NewControllerManagedBy(mgr).
 		WithOptions(controller.Options{MaxConcurrentReconciles: r.MaxConcurrent}).
-		For(&v1alpha1.Revision{})
-
-	ownedResources := []client.Object{
-		&corev1.Pod{},
-		&corev1.PodTemplate{},
-		&appsv1.ControllerRevision{},
-		&appsv1.Deployment{},
-		&appsv1.DaemonSet{},
-		&appsv1.StatefulSet{},
-		&appsv1.ReplicaSet{},
-	}
-
-	for _, resource := range ownedResources {
-		builder.Owns(resource)
-	}
+		For(&v1alpha1.Revision{}).
+		WatchesRawSource(source.Kind(
+			mgr.GetCache(),
+			&appsv1.ControllerRevision{},
+			handler.TypedEnqueueRequestsFromMapFunc(func(ctx context.Context, controllerRevision *appsv1.ControllerRevision) []ctrl.Request {
+				log := ctrl.LoggerFrom(ctx)
+				log.Info("Reconciling ControllerRevision", "controllerRevision", controllerRevision.Name)
+				return []ctrl.Request{{
+					NamespacedName: client.ObjectKey{
+						Name:      controllerRevision.Name,
+						Namespace: controllerRevision.Namespace,
+					},
+				}}
+			})),
+		)
+		// WatchesRawSource(source.Kind(
+		// 	mgr.GetCache(),
+		// 	&appsv1.StatefulSet{},
+		// 	handler.TypedEnqueueRequestsFromMapFunc(func(ctx context.Context, statefulSet *appsv1.StatefulSet) []ctrl.Request {
+		// 		log := ctrl.LoggerFrom(ctx)
+		// 		log.Info("Reconciling StatefulSet", "statefulset", statefulSet.Name)
+		// 		return []reconcile.Request{{
+		// 			NamespacedName: client.ObjectKey{
+		// 				Name:      statefulSet.Name,
+		// 				Namespace: statefulSet.Namespace,
+		// 			},
+		// 		}}
+		// 	})),
+		// ).
+		// WatchesRawSource(source.Kind(
+		// 	mgr.GetCache(),
+		// 	&appsv1.ReplicaSet{},
+		// 	handler.TypedEnqueueRequestsFromMapFunc(func(ctx context.Context, replicaSet *appsv1.ReplicaSet) []ctrl.Request {
+		// 		log := ctrl.LoggerFrom(ctx)
+		// 		log.Info("Reconciling ReplicaSet", "replicaset", replicaSet.Name)
+		// 		return []reconcile.Request{{
+		// 			NamespacedName: client.ObjectKey{
+		// 				Name:      replicaSet.Name,
+		// 				Namespace: replicaSet.Namespace,
+		// 			},
+		// 		}}
+		// 	})),
+		// ).
+		// WatchesRawSource(source.Kind(
+		// 	mgr.GetCache(),
+		// 	&appsv1.DaemonSet{},
+		// 	handler.TypedEnqueueRequestsFromMapFunc(func(ctx context.Context, daemonSet *appsv1.DaemonSet) []ctrl.Request {
+		// 		log := ctrl.LoggerFrom(ctx)
+		// 		log.Info("Reconciling DaemonSet", "daemonset", daemonSet.Name)
+		// 		return []reconcile.Request{{
+		// 			NamespacedName: client.ObjectKey{
+		// 				Name:      daemonSet.Name,
+		// 				Namespace: daemonSet.Namespace,
+		// 			},
+		// 		}}
+		// 	})),
+		// ).
+		// WatchesRawSource(source.Kind(
+		// 	mgr.GetCache(),
+		// 	&appsv1.Deployment{},
+		// 	handler.TypedEnqueueRequestsFromMapFunc(func(ctx context.Context, deployment *appsv1.Deployment) []ctrl.Request {
+		// 		log := ctrl.LoggerFrom(ctx)
+		// 		log.Info("Reconciling Deployment", "deployment", deployment.Name)
+		// 		return []reconcile.Request{{
+		// 			NamespacedName: client.ObjectKey{
+		// 				Name:      deployment.Name,
+		// 				Namespace: deployment.Namespace,
+		// 			},
+		// 		}}
+		// 	})),
+		// )
 
 	return builder.Complete(r)
 }
@@ -58,37 +115,19 @@ func NewRevisionControler(client k8sclient.Client, scheme *runtime.Scheme, recor
 }
 
 func (r *RevisionController) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	log := ctrl.LoggerFrom(ctx)
+	log.Info("Reconciling Revision", "revision", req.NamespacedName)
 	// Fetch the Revision instance
-	var obj client.Object
 
-	// revision := &v1alpha1.Revision{}
-	if err := r.Get(ctx, req.NamespacedName, obj); err != nil {
+	var revision v1alpha1.Revision
+	if err := r.Get(ctx, req.NamespacedName, &revision); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	var revision *v1alpha1.Revision
 
 	// check if there is a RolloutPlugin that matches the revision
-	switch obj.(type) {
-	case *v1alpha1.Revision:
-		revision = obj.(*v1alpha1.Revision)
-	case *appsv1.ControllerRevision:
-	case *appsv1.Deployment:
-	case *appsv1.DaemonSet:
-	case *appsv1.StatefulSet:
-	case *appsv1.ReplicaSet:
-	case *corev1.Pod:
-	case *corev1.PodTemplate:
-	}
-	if revision != nil && revision.GetDeletionTimestamp() != nil {
-		if controllerutils.ContainsFinalizer(revision, FinalizerName) {
-			controllerutils.RemoveFinalizer(revision, FinalizerName)
-			if err := r.Update(ctx, revision); err != nil {
-				return ctrl.Result{}, err
-			}
-		}
-	}
-
-	return ctrl.Result{}, nil
+	return ctrl.Result{
+		RequeueAfter: 5 * time.Minute,
+	}, nil
 }
 
 // func (r *RevisionController) matchingRolloutPlugins(revision *v1alpha1.Revision) (v1alpha1.RolloutPluginList, err) {

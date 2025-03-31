@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 
 	"github.com/aburan28/rolloutplugin-controller/api/v1alpha1"
@@ -69,7 +70,6 @@ func newCommand() *cobra.Command {
 			if err := networkingv1alpha3.AddToScheme(scheme); err != nil {
 				log.Fatal(err)
 			}
-
 			var clusterConfig *rest.Config
 			kubeConfig := viper.GetString("kubeconfig")
 			if kubeConfig != "" {
@@ -122,10 +122,11 @@ func newCommand() *cobra.Command {
 			}
 			rolloutPluginController := controller.NewRolloutPluginController(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorderFor("rolloutplugin-controller"), 30, 4)
 
-			revisionController := controller.NewRevisionControler(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorderFor("rolloutplugin-controller"), 30, 4)
+			revisionController := controller.NewRevisionControler(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorderFor("revision-controller"), 30, 4)
+			fmt.Println("Starting revision controller", rolloutPluginController)
 			if istioEnabled {
-				err = controller.SetupIstioInformers(mgr, nil)
-				if err != nil {
+				istioController := controller.NewIstioController(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorderFor("istio-controller"), 30, 4)
+				if err = istioController.SetupWithManager(mgr); err != nil {
 					log.Fatal(err)
 				}
 
@@ -134,10 +135,21 @@ func newCommand() *cobra.Command {
 			if err != nil {
 				log.Fatal(err)
 			}
+			podTemplatController := controller.NewPodTemplateControler(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorderFor("podtemplate-controller"), 30, 4)
+			if err = podTemplatController.SetupWithManager(mgr); err != nil {
+				log.Fatal(err)
+			}
+			// Setup the controller with the manager
+			// err = rolloutPluginController.SetupWithManager(mgr)
+			// if err != nil {
+			// 	log.Fatal(err)
+			// }
 			// Add a shutdown hook to kill plugins on manager stop
 			mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
 				<-ctx.Done() // Wait for stop signal
 				rolloutPluginController.Shutdown()
+				// revisionController.Shutdown()
+				// podTemplateController.Shutdown()
 				return nil
 			}))
 
@@ -148,6 +160,11 @@ func newCommand() *cobra.Command {
 			if err = revisionController.SetupWithManager(mgr); err != nil {
 				log.Fatal(err)
 			}
+
+			mux := controller.NewPProfServer()
+			go func() {
+				log.Println(http.ListenAndServe("127.0.0.1:8888", mux))
+			}()
 
 			err = mgr.Start(ctrl.SetupSignalHandler())
 			if err != nil {

@@ -14,6 +14,7 @@ template:
       image: consul:latest
       args:
         - "agent"
+        - "-config-file=/consul/config/consul.hcl"
         - "-server"
         - "-bootstrap-expect=1"
         - "-ui"

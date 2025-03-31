@@ -1,4 +1,4 @@
-apiVersion: rolloutplugin.io/v1alpha1
+apiVersion: rolloutsplugin.io/v1alpha1
 kind: Revision
 metadata:
   name: revision

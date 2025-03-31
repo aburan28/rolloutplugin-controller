@@ -446,6 +446,9 @@ spec:
               currentStepIndex:
                 format: int32
                 type: integer
+              currentWeight:
+                format: int32
+                type: integer
               initialized:
                 type: boolean
               lastAppliedStep:
