@@ -457,8 +457,12 @@ spec:
               observedGeneration:
                 format: int64
                 type: integer
+              previousRevision:
+                type: string
               rolloutInProgress:
                 type: boolean
+              updatedRevision:
+                type: string
             required:
             - conditions
             - initialized
