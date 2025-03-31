@@ -175,11 +175,22 @@ func (r *RolloutPluginController) Reconcile(ctx context.Context, req ctrl.Reques
 	// Execute the rollout steps if the strategy is Canary
 	if rolloutPlugin.Spec.Strategy.Type == "Canary" {
 		var curStepIndex int32
+		if rolloutPlugin.Status.UpdatedRevision == rolloutPlugin.Status.PreviousRevision {
+			// Set the rollout in progress status
+			rolloutPlugin.Status.RolloutInProgress = false
 
-		if rolloutPlugin.Status.CurrentStepIndex == 0 {
+			log.Info("Rollout is not in progress")
+			if err := r.Client.Status().Update(ctx, &rolloutPlugin); err != nil {
+				log.Error(err, "Failed to update rolloutPlugin status")
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{}, nil
+		}
+
+		// Check if the rollout is in progress
+		if rolloutPlugin.Status.CurrentStepIndex == 0 && rolloutPlugin.Status.PreviousRevision != rolloutPlugin.Status.UpdatedRevision {
 			// Set the rollout in progress status
 			rolloutPlugin.Status.RolloutInProgress = true
-
 			// Initialize the current step index if not set
 			rolloutPlugin.Status.CurrentStepIndex = 1
 			curStepIndex = 1
@@ -195,21 +206,29 @@ func (r *RolloutPluginController) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 
 		log.Info("Executing rollout steps for plugin", "plugin", rolloutPlugin.Spec.Plugin.Name)
+		curStep := rolloutPlugin.Spec.Strategy.Canary.Steps[rolloutPlugin.Status.CurrentStepIndex-1]
 		// Iterate through each step and update weight accordingly
-		for i := range rolloutPlugin.Spec.Strategy.Canary.Steps {
-			log.Info("Setting weight", "step", i)
-			rpcErr := r.plugins[rolloutPlugin.Spec.Plugin.Name].SetWeight(&rolloutPlugin)
-
-			// rpcErr := pluginInstance.SetWeight(&rolloutPlugin)
-			// pluginInstance.SetMirrorRoute(&rolloutPlugin)
-			if rpcErr.HasError() {
-				err := fmt.Errorf("unable to set weight for plugin %s: %v", rolloutPlugin.Spec.Plugin.Name, rpcErr)
-				log.Error(err, "Failed to set weight")
-				// Optionally return error or continue based on your desired behavior
-				return ctrl.Result{}, err
-			}
-			log.Info("Weight set successfully for step", "step", i)
+		if pauseStep, ok := curStep.(v1alpha1.RolloutPause); ok {
+			log.Info("Pausing rollout for plugin", "plugin", rolloutPlugin.Spec.Plugin.Name)
+			rolloutPlugin.Status.Paused = true
+			rolloutPlugin.Status.ResumeTime = time.Now().Add(pauseStep.Duration)
 		}
+
+		if rolloutPlugin.Spec.Strategy.Canary.Steps[rolloutPlugin.Status.CurrentStepIndex-1] == v1alpha1.RolloutPause {
+			log.Info("Pausing rollout for plugin", "plugin", rolloutPlugin.Spec.Plugin.Name)
+			rolloutPlugin.Status.Paused = true
+		}
+
+		rpcErr := r.plugins[rolloutPlugin.Spec.Plugin.Name].SetWeight(&rolloutPlugin)
+
+		if rpcErr.HasError() {
+			err := fmt.Errorf("unable to set weight for plugin %s: %v", rolloutPlugin.Spec.Plugin.Name, rpcErr)
+			log.Error(err, "Failed to set weight")
+			// Optionally return error or continue based on your desired behavior
+			return ctrl.Result{}, err
+		}
+		log.Info("Weight set successfully for step", "step", i)
+
 	}
 
 	// Update the rolloutPlugin status at the end of reconcile

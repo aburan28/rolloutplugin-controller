@@ -459,7 +459,12 @@ spec:
               observedGeneration:
                 format: int64
                 type: integer
+              paused:
+                type: boolean
               previousRevision:
+                type: string
+              resumeTime:
+                format: date-time
                 type: string
               rolloutInProgress:
                 type: boolean
@@ -469,6 +474,7 @@ spec:
             - conditions
             - initialized
             - observedGeneration
+            - paused
             type: object
         type: object
     served: true

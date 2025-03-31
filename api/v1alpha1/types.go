@@ -242,17 +242,19 @@ type Plugin struct {
 }
 
 type RolloutPluginStatus struct {
-	Conditions          []Condition `json:"conditions"`
-	Initialized         bool        `json:"initialized"`
-	ObservedGeneration  int64       `json:"observedGeneration"`
-	CurrentStepIndex    int32       `json:"currentStepIndex,omitempty"`
-	CurrentStepHash     string      `json:"currentStepHash,omitempty"`
-	CurrentStepComplete bool        `json:"currentStep,omitempty"`
-	CurrentWeight       int32       `json:"currentWeight,omitempty"`
-	UpdatedRevision     string      `json:"updatedRevision,omitempty"`
-	PreviousRevision    string      `json:"previousRevision,omitempty"`
-	LastAppliedStep     int32       `json:"lastAppliedStep,omitempty"`
-	RolloutInProgress   bool        `json:"rolloutInProgress,omitempty"`
+	Conditions          []Condition  `json:"conditions"`
+	Initialized         bool         `json:"initialized"`
+	Paused              bool         `json:"paused"`
+	ResumeTime          *metav1.Time `json:"resumeTime,omitempty"`
+	ObservedGeneration  int64        `json:"observedGeneration"`
+	CurrentStepIndex    int32        `json:"currentStepIndex,omitempty"`
+	CurrentStepHash     string       `json:"currentStepHash,omitempty"`
+	CurrentStepComplete bool         `json:"currentStep,omitempty"`
+	CurrentWeight       int32        `json:"currentWeight,omitempty"`
+	UpdatedRevision     string       `json:"updatedRevision,omitempty"`
+	PreviousRevision    string       `json:"previousRevision,omitempty"`
+	LastAppliedStep     int32        `json:"lastAppliedStep,omitempty"`
+	RolloutInProgress   bool         `json:"rolloutInProgress,omitempty"`
 }
 
 type Condition struct {
