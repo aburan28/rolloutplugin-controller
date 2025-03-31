@@ -9,7 +9,6 @@ import (
 	"github.com/aburan28/rolloutplugin-controller/pkg/plugin/pluginclient"
 	"github.com/aburan28/rolloutplugin-controller/pkg/plugin/rpc"
 	utils "github.com/aburan28/rolloutplugin-controller/pkg/utils/plugin"
-	v1 "github.com/google/go-containerregistry/pkg/v1"
 	goPlugin "github.com/hashicorp/go-plugin"
 	networkingv1alpha3 "istio.io/client-go/pkg/apis/networking/v1alpha3"
 	appsv1 "k8s.io/api/apps/v1"
@@ -213,7 +212,7 @@ func (r *RolloutPluginController) Reconcile(ctx context.Context, req ctrl.Reques
 			log.Info("Pausing rollout for plugin", "plugin", rolloutPlugin.Spec.Plugin.Name)
 			rolloutPlugin.Status.Paused = true
 			var d time.Duration
-			rolloutPlugin.Status.ResumeTime = &v1.Time{Time: time.Now().Add(d)}
+			rolloutPlugin.Status.ResumeTime = &metav1.Time{Time: time.Now().Add(d)}
 		}
 
 		if curStep.SetWeight != nil {

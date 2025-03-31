@@ -131,12 +131,10 @@ spec:
                                 A Rollout will resume when spec.Paused is reset to false.
                               properties:
                                 duration:
-                                  anyOf:
-                                  - type: integer
-                                  - type: string
                                   description: Duration the amount of time to wait
                                     before moving to the next step.
-                                  x-kubernetes-int-or-string: true
+                                  format: int64
+                                  type: integer
                               type: object
                             setCanaryScale:
                               description: SetCanaryScale defines how to scale the
