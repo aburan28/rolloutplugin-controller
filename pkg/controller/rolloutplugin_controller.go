@@ -9,6 +9,7 @@ import (
 	"github.com/aburan28/rolloutplugin-controller/pkg/plugin/pluginclient"
 	"github.com/aburan28/rolloutplugin-controller/pkg/plugin/rpc"
 	utils "github.com/aburan28/rolloutplugin-controller/pkg/utils/plugin"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
 	goPlugin "github.com/hashicorp/go-plugin"
 	networkingv1alpha3 "istio.io/client-go/pkg/apis/networking/v1alpha3"
 	appsv1 "k8s.io/api/apps/v1"
@@ -207,27 +208,28 @@ func (r *RolloutPluginController) Reconcile(ctx context.Context, req ctrl.Reques
 
 		log.Info("Executing rollout steps for plugin", "plugin", rolloutPlugin.Spec.Plugin.Name)
 		curStep := rolloutPlugin.Spec.Strategy.Canary.Steps[rolloutPlugin.Status.CurrentStepIndex-1]
-		// Iterate through each step and update weight accordingly
-		if pauseStep, ok := curStep.(v1alpha1.RolloutPause); ok {
+
+		if curStep.Pause != nil {
 			log.Info("Pausing rollout for plugin", "plugin", rolloutPlugin.Spec.Plugin.Name)
 			rolloutPlugin.Status.Paused = true
-			rolloutPlugin.Status.ResumeTime = time.Now().Add(pauseStep.Duration)
+			var d time.Duration
+			rolloutPlugin.Status.ResumeTime = &v1.Time{Time: time.Now().Add(d)}
 		}
 
-		if rolloutPlugin.Spec.Strategy.Canary.Steps[rolloutPlugin.Status.CurrentStepIndex-1] == v1alpha1.RolloutPause {
-			log.Info("Pausing rollout for plugin", "plugin", rolloutPlugin.Spec.Plugin.Name)
-			rolloutPlugin.Status.Paused = true
+		if curStep.SetWeight != nil {
+			rpcErr := r.plugins[rolloutPlugin.Spec.Plugin.Name].SetWeight(&rolloutPlugin)
+			if rpcErr.HasError() {
+				err := fmt.Errorf("unable to set weight for plugin %s: %v", rolloutPlugin.Spec.Plugin.Name, rpcErr)
+				log.Error(err, "Failed to set weight")
+				// Optionally return error or continue based on your desired behavior
+				return ctrl.Result{}, err
+			}
+			log.Info("Setting weight for plugin", "plugin", rolloutPlugin.Spec.Plugin.Name)
+			rolloutPlugin.Status.CurrentStepComplete = true
+			rolloutPlugin.Status.Paused = false
+			rolloutPlugin.Status.ResumeTime = nil
+			rolloutPlugin.Status.CurrentStepIndex = curStepIndex
 		}
-
-		rpcErr := r.plugins[rolloutPlugin.Spec.Plugin.Name].SetWeight(&rolloutPlugin)
-
-		if rpcErr.HasError() {
-			err := fmt.Errorf("unable to set weight for plugin %s: %v", rolloutPlugin.Spec.Plugin.Name, rpcErr)
-			log.Error(err, "Failed to set weight")
-			// Optionally return error or continue based on your desired behavior
-			return ctrl.Result{}, err
-		}
-		log.Info("Weight set successfully for step", "step", i)
 
 	}
 
