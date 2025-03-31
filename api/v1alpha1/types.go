@@ -3,9 +3,10 @@
 package v1alpha1
 
 import (
+	"time"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 )
 
@@ -170,7 +171,7 @@ type CanaryStep struct {
 type RolloutPause struct {
 	// Duration the amount of time to wait before moving to the next step.
 	// +optional
-	Duration *intstr.IntOrString `json:"duration,omitempty" protobuf:"bytes,1,opt,name=duration"`
+	Duration time.Duration `json:"duration,omitempty" protobuf:"bytes,1,opt,name=duration"`
 }
 
 type RouteMatch struct {
