@@ -174,6 +174,26 @@ func (r *RolloutPluginController) Reconcile(ctx context.Context, req ctrl.Reques
 
 	// Execute the rollout steps if the strategy is Canary
 	if rolloutPlugin.Spec.Strategy.Type == "Canary" {
+		var curStepIndex int32
+
+		if rolloutPlugin.Status.CurrentStepIndex == 0 {
+			// Set the rollout in progress status
+			rolloutPlugin.Status.RolloutInProgress = true
+
+			// Initialize the current step index if not set
+			rolloutPlugin.Status.CurrentStepIndex = 1
+			curStepIndex = 1
+			log.Info("Initializing current step index", "step", rolloutPlugin.Status.CurrentStepIndex)
+		}
+
+		if rolloutPlugin.Status.CurrentStepComplete {
+			curStepIndex += 1
+			rolloutPlugin.Status.CurrentStepIndex = curStepIndex
+			rolloutPlugin.Status.CurrentStepComplete = false
+			log.Info("Current step complete, moving to next step", "step", rolloutPlugin.Status.CurrentStepIndex)
+
+		}
+
 		log.Info("Executing rollout steps for plugin", "plugin", rolloutPlugin.Spec.Plugin.Name)
 		// Iterate through each step and update weight accordingly
 		for i := range rolloutPlugin.Spec.Strategy.Canary.Steps {
