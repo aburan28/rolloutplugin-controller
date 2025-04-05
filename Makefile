@@ -92,7 +92,8 @@ lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
 
 .PHONY: build
 build: manifests generate fmt vet ## Build manager binary.
-	go build -o bin/manager cmd/root.go
+	go build -o bin/rolloutplugin-controller cmd/root.go
+	go build . 
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.

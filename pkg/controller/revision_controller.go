@@ -44,62 +44,6 @@ func (r *RevisionController) SetupWithManager(mgr ctrl.Manager) error {
 				}}
 			})),
 		)
-		// WatchesRawSource(source.Kind(
-		// 	mgr.GetCache(),
-		// 	&appsv1.StatefulSet{},
-		// 	handler.TypedEnqueueRequestsFromMapFunc(func(ctx context.Context, statefulSet *appsv1.StatefulSet) []ctrl.Request {
-		// 		log := ctrl.LoggerFrom(ctx)
-		// 		log.Info("Reconciling StatefulSet", "statefulset", statefulSet.Name)
-		// 		return []reconcile.Request{{
-		// 			NamespacedName: client.ObjectKey{
-		// 				Name:      statefulSet.Name,
-		// 				Namespace: statefulSet.Namespace,
-		// 			},
-		// 		}}
-		// 	})),
-		// ).
-		// WatchesRawSource(source.Kind(
-		// 	mgr.GetCache(),
-		// 	&appsv1.ReplicaSet{},
-		// 	handler.TypedEnqueueRequestsFromMapFunc(func(ctx context.Context, replicaSet *appsv1.ReplicaSet) []ctrl.Request {
-		// 		log := ctrl.LoggerFrom(ctx)
-		// 		log.Info("Reconciling ReplicaSet", "replicaset", replicaSet.Name)
-		// 		return []reconcile.Request{{
-		// 			NamespacedName: client.ObjectKey{
-		// 				Name:      replicaSet.Name,
-		// 				Namespace: replicaSet.Namespace,
-		// 			},
-		// 		}}
-		// 	})),
-		// ).
-		// WatchesRawSource(source.Kind(
-		// 	mgr.GetCache(),
-		// 	&appsv1.DaemonSet{},
-		// 	handler.TypedEnqueueRequestsFromMapFunc(func(ctx context.Context, daemonSet *appsv1.DaemonSet) []ctrl.Request {
-		// 		log := ctrl.LoggerFrom(ctx)
-		// 		log.Info("Reconciling DaemonSet", "daemonset", daemonSet.Name)
-		// 		return []reconcile.Request{{
-		// 			NamespacedName: client.ObjectKey{
-		// 				Name:      daemonSet.Name,
-		// 				Namespace: daemonSet.Namespace,
-		// 			},
-		// 		}}
-		// 	})),
-		// ).
-		// WatchesRawSource(source.Kind(
-		// 	mgr.GetCache(),
-		// 	&appsv1.Deployment{},
-		// 	handler.TypedEnqueueRequestsFromMapFunc(func(ctx context.Context, deployment *appsv1.Deployment) []ctrl.Request {
-		// 		log := ctrl.LoggerFrom(ctx)
-		// 		log.Info("Reconciling Deployment", "deployment", deployment.Name)
-		// 		return []reconcile.Request{{
-		// 			NamespacedName: client.ObjectKey{
-		// 				Name:      deployment.Name,
-		// 				Namespace: deployment.Namespace,
-		// 			},
-		// 		}}
-		// 	})),
-		// )
 
 	return builder.Complete(r)
 }

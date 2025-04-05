@@ -273,7 +273,7 @@ func (in *RevisionList) DeepCopyInto(out *RevisionList) {
 	in.ListMeta.DeepCopyInto(&out.ListMeta)
 	if in.Items != nil {
 		in, out := &in.Items, &out.Items
-		*out = make([]RevisionList, len(*in))
+		*out = make([]Revision, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}

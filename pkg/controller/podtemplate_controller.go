@@ -60,7 +60,7 @@ func NewPodTemplateControler(client k8sclient.Client, scheme *runtime.Scheme, re
 
 func (r *PodTemplateController) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := ctrl.LoggerFrom(ctx)
-	log.Info("Reconciling PodTemplate", req.NamespacedName)
+	log.Info("Reconciling PodTemplate", "podtemplate", req.NamespacedName)
 	// Fetch the Revision instance
 
 	var podTemplate corev1.PodTemplate

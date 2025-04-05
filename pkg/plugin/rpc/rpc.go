@@ -49,6 +49,7 @@ type RolloutPlugin interface {
 	Terminate(*v1alpha1.RolloutPlugin, types.RpcRolloutContext) (types.RpcRolloutResult, types.RpcError)
 	Abort(*v1alpha1.RolloutPlugin, types.RpcRolloutContext) (types.RpcRolloutResult, types.RpcError)
 	Type() string
+	Sync() types.RpcError
 	SetHeaderRoute(*v1alpha1.RolloutPlugin) types.RpcError
 }
 
@@ -117,6 +118,15 @@ func (g *RolloutPluginRPC) Type() string {
 	}
 
 	return resp
+}
+
+func (g *RolloutPluginRPC) Sync() types.RpcError {
+	var resp string
+	err := g.client.Call("Plugin.Sync", new(any), &resp)
+	if err != nil {
+		return types.RpcError{ErrorString: fmt.Sprintf("Sync rpc call error: %s", err)}
+	}
+	return types.RpcError{ErrorString: resp}
 }
 
 func (g *RolloutPluginRPC) SetWeight(rollout *v1alpha1.RolloutPlugin) types.RpcError {
@@ -242,6 +252,12 @@ func (s *RolloutPluginServerRPC) SetCanaryScale(args *v1alpha1.RolloutPlugin, re
 // Type returns the type of the traffic routing reconciler
 func (s *RolloutPluginServerRPC) Type(args any, resp *string) error {
 	*resp = s.Impl.Type()
+	return nil
+}
+
+func (s *RolloutPluginServerRPC) Sync(args any, resp *string) error {
+	syncErr := s.Impl.Sync()
+	*resp = syncErr.ErrorString
 	return nil
 }
 

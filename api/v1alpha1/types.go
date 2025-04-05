@@ -56,7 +56,8 @@ type RevisionStatus struct {
 type RevisionList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []RevisionList `json:"items"`
+
+	Items []Revision `json:"items"`
 }
 
 type RolloutPluginSpec struct {

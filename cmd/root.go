@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/aburan28/rolloutplugin-controller/api/v1alpha1"
 	"github.com/aburan28/rolloutplugin-controller/pkg/controller"
@@ -36,6 +37,7 @@ func newCommand() *cobra.Command {
 			metricsAddr := viper.GetString("metrics-addr")
 			probeBindAddr := viper.GetString("probe-addr")
 			webhookAddr := viper.GetString("webhook-addr")
+			controllers := viper.GetString("controllers")
 			leaderElectionNamespace := viper.GetString("leader-election-namespace")
 			managerConfig := controller.Config{
 				WebhookAddr:             webhookAddr,
@@ -97,48 +99,68 @@ func newCommand() *cobra.Command {
 			if err != nil {
 				log.Fatal(err)
 			}
-			// client := mgr.GetClient()
-			// rolloutController := controller.NewRolloutPluginController(client, scheme, nil, 30, 4)
-
-			// cm := mgrs.NewManager(kubeClient, dynamicClient, 8082, 8081, *rolloutController, mgr)
-			// fmt.Println("Starting manager", cm)
-			// // cm.Start(ctx, 3, mgrs.NewLeaderElectionOptions())
-
-			// // cm.StartControllers()
-
-			// mgr, err = ctrl.NewManager(clusterConfig, manager.Options{
-			// 	Scheme:                  scheme,
-			// 	LeaderElection:          true,
-			// 	LeaderElectionID:        "rolloutplugin-controller",
-			// 	LeaderElectionNamespace: leaderElectionNamespace,
-			// 	Metrics: metricsserver.Options{
-			// 		BindAddress: metricsAddr,
-			// 	},
-			// 	HealthProbeBindAddress: probeBindAddr,
-			// })
 
 			if err != nil {
 				log.Fatal(err)
 			}
-			rolloutPluginController := controller.NewRolloutPluginController(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorderFor("rolloutplugin-controller"), 30, 4)
+			var rolloutPluginController *controller.RolloutPluginController
+			var revisionController *controller.RevisionController
+			var podTemplateController *controller.PodTemplateController
+			// var workloadController *controller.WorkloadController
+			var istioController *controller.IstioController
+			controllerList := strings.Split(controllers, ",")
+			for _, controllerName := range controllerList {
+				switch controllerName {
+				case "rolloutplugin":
 
-			revisionController := controller.NewRevisionControler(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorderFor("revision-controller"), 30, 4)
-			fmt.Println("Starting revision controller", rolloutPluginController)
-			if istioEnabled {
-				istioController := controller.NewIstioController(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorderFor("istio-controller"), 30, 4)
-				if err = istioController.SetupWithManager(mgr); err != nil {
-					log.Fatal(err)
+					rolloutPluginController = controller.NewRolloutPluginController(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorderFor("rolloutplugin-controller"), 30, 4)
+					if err = rolloutPluginController.SetupWithManager(mgr); err != nil {
+						log.Fatal(err)
+					}
+					// rolloutPluginController.Start(ctx)
+				case "revision":
+
+					revisionController = controller.NewRevisionControler(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorderFor("revision-controller"), 30, 4)
+					if err = revisionController.SetupWithManager(mgr); err != nil {
+						log.Fatal(err)
+					}
+				case "podtemplate":
+					podTemplateController = controller.NewPodTemplateControler(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorderFor("podtemplate-controller"), 30, 4)
+					if err = podTemplateController.SetupWithManager(mgr); err != nil {
+						log.Fatal(err)
+					}
+				// case "workload":
+				// 	workloadController := controller.NewWorkloadController(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorderFor("workload-controller"), 30, 4)
+				// 	if err = workloadController.SetupWithManager(mgr); err != nil {
+				// 		log.Fatal(err)
+				// 	}
+				case "istio":
+					istioController = controller.NewIstioController(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorderFor("istio-controller"), 30, 4)
+					if err = istioController.SetupWithManager(mgr); err != nil {
+						log.Fatal(err)
+					}
+				default:
+					log.Fatalf("Unknown controller: %s", controllerName)
 				}
+			}
+			// if istioEnabled {
+			// 	istioController := controller.NewIstioController(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorderFor("istio-controller"), 30, 4)
+			// 	if err = istioController.SetupWithManager(mgr); err != nil {
+			// 		log.Fatal(err)
+			// 	}
 
-			}
+			// }
 
-			if err != nil {
-				log.Fatal(err)
-			}
-			podTemplatController := controller.NewPodTemplateControler(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorderFor("podtemplate-controller"), 30, 4)
-			if err = podTemplatController.SetupWithManager(mgr); err != nil {
-				log.Fatal(err)
-			}
+			// if err != nil {
+			// 	log.Fatal(err)
+			// }
+			// podTemplatController := controller.NewPodTemplateControler(mgr.GetClient(), mgr.GetScheme(), mgr.GetEventRecorderFor("podtemplate-controller"), 30, 4)
+			// if err = podTemplatController.SetupWithManager(mgr); err != nil {
+			// 	log.Fatal(err)
+			// }
+			// if err = rolloutPluginController.SetupWithManager(mgr); err != nil {
+			// 	log.Fatal(err)
+			// }
 			// Setup the controller with the manager
 			// err = rolloutPluginController.SetupWithManager(mgr)
 			// if err != nil {
@@ -152,14 +174,6 @@ func newCommand() *cobra.Command {
 				// podTemplateController.Shutdown()
 				return nil
 			}))
-
-			if err = rolloutPluginController.SetupWithManager(mgr); err != nil {
-				log.Fatal(err)
-			}
-
-			if err = revisionController.SetupWithManager(mgr); err != nil {
-				log.Fatal(err)
-			}
 
 			mux := controller.NewPProfServer()
 			go func() {
@@ -193,6 +207,9 @@ func newCommand() *cobra.Command {
 
 	command.Flags().String("leader-election-namespace", "default", "The namespace in which the leader election configmap will be created.")
 	viper.BindPFlag("leader-election-namespace", command.Flags().Lookup("leader-election-namespace"))
+
+	command.Flags().String("controllers", "rolloutplugin,revision,podtemplate", "The controllers to start. Comma separated list of controller names.")
+	viper.BindPFlag("controllers", command.Flags().Lookup("controllers"))
 
 	command.Flags().String("kubeconfig", "", "Path to a kubeconfig file")
 	viper.BindPFlag("kubeconfig", command.Flags().Lookup("kubeconfig"))
