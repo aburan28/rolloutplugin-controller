@@ -2,16 +2,19 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/aburan28/rolloutplugin-controller/api/v1alpha1"
 	"github.com/aburan28/rolloutplugin-controller/pkg/plugin/pluginclient"
 	"github.com/aburan28/rolloutplugin-controller/pkg/plugin/rpc"
+	"github.com/aburan28/rolloutplugin-controller/pkg/utils/hash"
 	utils "github.com/aburan28/rolloutplugin-controller/pkg/utils/plugin"
 	goPlugin "github.com/hashicorp/go-plugin"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -32,9 +35,9 @@ type RolloutPluginController struct {
 	RetryWaitSeconds       int
 	MaxConcurrent          int
 	rolloutPluginWorkqueue workqueue.TypedRateLimitingInterface[any]
-
-	pluginClients map[string]*goPlugin.Client
-	plugins       map[string]rpc.RolloutPlugin
+	clientset              *kubernetes.Clientset
+	pluginClients          map[string]*goPlugin.Client
+	plugins                map[string]rpc.RolloutPlugin
 }
 
 func (r *RolloutPluginController) SetupWithManager(mgr ctrl.Manager) error {
@@ -137,6 +140,19 @@ func (r *RolloutPluginController) Reconcile(ctx context.Context, req ctrl.Reques
 	if observedGeneration != rolloutPlugin.GetGeneration() {
 		log.Info("Updating observed generation", "plugin", rolloutPlugin.Spec.Plugin.Name)
 		rolloutPlugin.Status.ObservedGeneration = rolloutPlugin.GetGeneration()
+	}
+	var name string
+	name = "consul"
+	ssHash, err := r.getStatefulSetRevision(ctx, name, rolloutPlugin.Namespace, rolloutPlugin.Spec.Selector.MatchLabels)
+	if err != nil {
+		log.Error(err, "Failed to get StatefulSet revision", "plugin", rolloutPlugin.Spec.Plugin.Name)
+		return ctrl.Result{}, err
+	}
+	if ssHash != rolloutPlugin.Status.CurrentRevision {
+		log.Info("Updating current revision", "plugin", rolloutPlugin.Spec.Plugin.Name)
+		rolloutPlugin.Status.CurrentRevision = ssHash
+		rolloutPlugin.Status.UpdatedRevision = ssHash
+		rolloutPlugin.Status.RolloutInProgress = true
 	}
 
 	currentRevision := rolloutPlugin.Status.CurrentRevision
@@ -300,19 +316,57 @@ func (r *RolloutPluginController) Run(ctx context.Context, threadiness int) erro
 	return nil
 }
 
-// func (r *RolloutPluginController) worker(ctx context.Context) {
-// 	log := ctrl.LoggerFrom(ctx)
-// 	log.Info("Starting rollout plugin worker")
-// 	for {
-// 		obj, shutdown := r.rolloutPluginWorkqueue.Get()
-// 		if shutdown {
-// 			return
-// 		}
-// 		_, err := r.Reconcile(ctx, obj.(ctrl.Request))
-// 		if err != nil {
-// 			log.Error(err, "Error reconciling rollout plugin")
-// 			r.rolloutPluginWorkqueue.AddRateLimited(obj)
-// 		}
-// 		r.rolloutPluginWorkqueue.Forget(obj)
-// 	}
-// }
+//	func (r *RolloutPluginController) worker(ctx context.Context) {
+//		log := ctrl.LoggerFrom(ctx)
+//		log.Info("Starting rollout plugin worker")
+//		for {
+//			obj, shutdown := r.rolloutPluginWorkqueue.Get()
+//			if shutdown {
+//				return
+//			}
+//			_, err := r.Reconcile(ctx, obj.(ctrl.Request))
+//			if err != nil {
+//				log.Error(err, "Error reconciling rollout plugin")
+//				r.rolloutPluginWorkqueue.AddRateLimited(obj)
+//			}
+//			r.rolloutPluginWorkqueue.Forget(obj)
+//		}
+//	}
+func (r *RolloutPluginController) getStatefulSetRevision(ctx context.Context, name string, namespace string, matchLabels map[string]string) (string, error) {
+	clientset, err := kubernetes.NewForConfig(ctrl.GetConfigOrDie())
+
+	if err != nil {
+		return "", fmt.Errorf("failed to create Kubernetes clientset: %w", err)
+	}
+	r.clientset = clientset
+	// r.clientset.AppsV1().StatefulSets(namespace).Get(ctx, name, metav1.GetOptions{})
+	ls := metav1.LabelSelector{
+		MatchLabels: matchLabels,
+	}
+
+	labelSelector, err := metav1.LabelSelectorAsSelector(&ls)
+	if err != nil {
+		return "", err
+	}
+	stsList, err := r.clientset.AppsV1().StatefulSets(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: labelSelector.String(),
+	})
+	if err != nil {
+		return "", err
+	}
+	if len(stsList.Items) > 1 {
+		return "", errors.New("multiple StatefulSets found")
+	} else if len(stsList.Items) == 0 {
+		return "", errors.New("no StatefulSet found")
+	}
+
+	ss, err := r.clientset.AppsV1().StatefulSets(namespace).Get(ctx, stsList.Items[0].Name, metav1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
+
+	i := int32(0)
+	podHash := hash.ComputePodTemplateHash(&ss.Spec.Template, &i)
+
+	return podHash, nil
+}

@@ -2,6 +2,9 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: consul
+  labels:
+    app: consul
+    component: server
 spec:
   selector:
     matchLabels:

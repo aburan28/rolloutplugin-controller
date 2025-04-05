@@ -3,3 +3,4 @@ previousRevision
 currentRevision 
 
 which controller or plugin is responsible for updating this?
+added the Sync() method to tell plugin to start to look for a delta

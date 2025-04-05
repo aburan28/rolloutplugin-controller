@@ -6,7 +6,7 @@ metadata:
 spec:
   selector:
     matchLabels:
-      app: nginx
+      app: consul
   plugin:
     name: statefulset
     url: "https://helmchartsglobal.s3.us-east-1.amazonaws.com/"
