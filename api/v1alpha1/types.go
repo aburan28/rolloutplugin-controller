@@ -253,6 +253,7 @@ type RolloutPluginStatus struct {
 	CurrentStepHash     string       `json:"currentStepHash,omitempty"`
 	CurrentStepComplete bool         `json:"currentStep,omitempty"`
 	CurrentWeight       int32        `json:"currentWeight,omitempty"`
+	CurrentRevision     string       `json:"currentRevision,omitempty"`
 	UpdatedRevision     string       `json:"updatedRevision,omitempty"`
 	PreviousRevision    string       `json:"previousRevision,omitempty"`
 	LastAppliedStep     int32        `json:"lastAppliedStep,omitempty"`

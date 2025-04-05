@@ -81,14 +81,7 @@ func (r *RolloutPluginController) Reconcile(ctx context.Context, req ctrl.Reques
 	if err := r.Client.Get(ctx, req.NamespacedName, &rolloutPlugin); err != nil {
 		return ctrl.Result{}, k8sclient.IgnoreNotFound(err)
 	}
-
-	if err := utils.CheckIfExists(rolloutPlugin.Spec.Plugin.Name); err != nil {
-		log.Info("Plugin not found locally, attempting to download", "plugin", rolloutPlugin.Spec.Plugin.Name)
-		if err := pluginclient.DownloadPlugin(ctx, rolloutPlugin.Spec.Plugin.Url, rolloutPlugin.Spec.Plugin.Name); err != nil {
-			log.Error(err, "Failed to download plugin", "plugin", rolloutPlugin.Spec.Plugin.Name)
-			return ctrl.Result{}, err
-		}
-	}
+	var err error
 
 	if deletionTimestamp := rolloutPlugin.GetDeletionTimestamp(); deletionTimestamp != nil {
 		log.Info("Deleting plugin", "plugin", rolloutPlugin.Spec.Plugin.Name)
@@ -103,26 +96,23 @@ func (r *RolloutPluginController) Reconcile(ctx context.Context, req ctrl.Reques
 				return ctrl.Result{}, err
 			}
 		}
-		// // Stop the plugin and remove it from the controller maps
-		// if err := pluginclient.DeletePlugin(rolloutPlugin.Spec.Plugin.Name); err != nil {
-		// 	log.Error(err, "Failed to delete plugin", "plugin", rolloutPlugin.Spec.Plugin.Name)
-		// 	return ctrl.Result{}, err
-		// }
-	}
-
-	// Optionally verify the plugin binary if verification is enabled
-	if rolloutPlugin.Spec.Plugin.Verify {
-		if err := pluginclient.VerifyPlugin(rolloutPlugin.Spec.Plugin.Name, rolloutPlugin.Spec.Plugin.Sha256); err != nil {
-			log.Error(err, "Plugin verification failed", "plugin", rolloutPlugin.Spec.Plugin.Name)
-			return ctrl.Result{}, err
-		}
-	} else {
-		log.Info("Skipping plugin verification", "plugin", rolloutPlugin.Spec.Plugin.Name)
 	}
 
 	// Initialize plugin if not already present in the controller maps
-
 	if r.plugins == nil || r.pluginClients == nil {
+		err = r.checkPluginExists(ctx, &rolloutPlugin)
+		if err != nil {
+			log.Error(err, "Failed to check plugin existence", "plugin", rolloutPlugin.Spec.Plugin.Name)
+			return ctrl.Result{}, err
+		}
+		if rolloutPlugin.Spec.Plugin.Verify {
+			if err := pluginclient.VerifyPlugin(rolloutPlugin.Spec.Plugin.Name, rolloutPlugin.Spec.Plugin.Sha256); err != nil {
+				log.Error(err, "Plugin verification failed", "plugin", rolloutPlugin.Spec.Plugin.Name)
+				return ctrl.Result{}, err
+			}
+		} else {
+			log.Info("Skipping plugin verification", "plugin", rolloutPlugin.Spec.Plugin.Name)
+		}
 		err := r.initializePlugin(ctx, &rolloutPlugin)
 		if err != nil {
 			log.Error(err, "Failed to initialize plugin", "plugin", rolloutPlugin.Spec.Plugin.Name)
@@ -137,15 +127,20 @@ func (r *RolloutPluginController) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	// Set the observed generation
-	rolloutPlugin.Status.ObservedGeneration = rolloutPlugin.GetGeneration()
-	log.Info("Setting observed generation", "generation", rolloutPlugin.GetGeneration())
+	observedGeneration := rolloutPlugin.Status.ObservedGeneration
+	if observedGeneration != rolloutPlugin.GetGeneration() {
+		log.Info("Updating observed generation", "plugin", rolloutPlugin.Spec.Plugin.Name)
+		rolloutPlugin.Status.ObservedGeneration = rolloutPlugin.GetGeneration()
+	}
 
-	// Execute the rollout steps if the strategy is Canary
-	// process the rollout steps
-	err := r.processRolloutSteps(ctx, &rolloutPlugin)
-	if err != nil {
-		log.Error(err, "Failed to process rollout steps", "plugin", rolloutPlugin.Spec.Plugin.Name)
-		return ctrl.Result{}, err
+	currentRevision := rolloutPlugin.Status.CurrentRevision
+	if currentRevision != rolloutPlugin.Status.UpdatedRevision || rolloutPlugin.Status.RolloutInProgress {
+		log.Info("Updating current revision", "plugin", rolloutPlugin.Spec.Plugin.Name)
+		err = r.processRolloutSteps(ctx, &rolloutPlugin)
+		if err != nil {
+			log.Error(err, "Failed to process rollout steps", "plugin", rolloutPlugin.Spec.Plugin.Name)
+			return ctrl.Result{}, err
+		}
 	}
 
 	// Update the rolloutPlugin status at the end of reconcile
@@ -158,6 +153,22 @@ func (r *RolloutPluginController) Reconcile(ctx context.Context, req ctrl.Reques
 		RequeueAfter: 5 * time.Second,
 	}, nil
 }
+
+func (r *RolloutPluginController) checkPluginExists(ctx context.Context, rolloutPlugin *v1alpha1.RolloutPlugin) error {
+	log := ctrl.LoggerFrom(ctx).WithValues("rolloutplugin", rolloutPlugin.Name)
+
+	if err := utils.CheckIfExists(rolloutPlugin.Spec.Plugin.Name); err != nil {
+		log.Info("Plugin not found locally, attempting to download", "plugin", rolloutPlugin.Spec.Plugin.Name)
+		if err := pluginclient.DownloadPlugin(ctx, rolloutPlugin.Spec.Plugin.Url, rolloutPlugin.Spec.Plugin.Name); err != nil {
+			log.Error(err, "Failed to download plugin", "plugin", rolloutPlugin.Spec.Plugin.Name)
+			return err
+		}
+	}
+	log.Info("Plugin found locally", "plugin", rolloutPlugin.Spec.Plugin.Name)
+	// Check if the plugin is already running
+	return nil
+}
+
 func (r *RolloutPluginController) initializePlugin(ctx context.Context, rolloutPlugin *v1alpha1.RolloutPlugin) error {
 	log := ctrl.LoggerFrom(ctx).WithValues("rolloutplugin", rolloutPlugin.Name)
 	r.plugins = make(map[string]rpc.RolloutPlugin)
@@ -197,6 +208,7 @@ func (r *RolloutPluginController) initializePlugin(ctx context.Context, rolloutP
 }
 
 func (r *RolloutPluginController) processRolloutSteps(ctx context.Context, rolloutPlugin *v1alpha1.RolloutPlugin) error {
+
 	log := ctrl.LoggerFrom(ctx).WithValues("rolloutplugin", rolloutPlugin.Name)
 	if rolloutPlugin.Spec.Strategy.Type == "Canary" {
 		var curStepIndex int32

@@ -122,7 +122,7 @@ func (t *rolloutPlugin) StartPlugin(pluginName string) (rpc.RolloutPlugin, error
 func DownloadPlugin(ctx context.Context, url string, pluginName string) error {
 
 	pluginUrl := url + pluginName
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pluginUrl, nil)
 	if err != nil {
