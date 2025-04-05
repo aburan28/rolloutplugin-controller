@@ -255,8 +255,8 @@ func (s *RolloutPluginServerRPC) Type(args any, resp *string) error {
 	return nil
 }
 
-func (s *RolloutPluginServerRPC) Sync(args any, resp *string) error {
-	syncErr := s.Impl.Sync()
+func (s *RolloutPluginServerRPC) Sync(args *v1alpha1.RolloutPlugin, resp *string) error {
+	syncErr := s.Impl.Sync(args)
 	*resp = syncErr.ErrorString
 	return nil
 }
