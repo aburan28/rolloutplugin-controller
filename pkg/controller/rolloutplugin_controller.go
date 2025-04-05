@@ -118,6 +118,12 @@ func (r *RolloutPluginController) Reconcile(ctx context.Context, req ctrl.Reques
 			log.Error(err, "Failed to initialize plugin", "plugin", rolloutPlugin.Spec.Plugin.Name)
 			return ctrl.Result{}, err
 		}
+		rpcErr := r.plugins[rolloutPlugin.Spec.Plugin.Name].Sync(&rolloutPlugin)
+		if rpcErr.HasError() {
+			err := fmt.Errorf("unable to sync plugin %s: %v", rolloutPlugin.Spec.Plugin.Name, rpcErr)
+			log.Error(err, "Failed to sync plugin")
+			return ctrl.Result{}, err
+		}
 	}
 
 	controllerutils.AddFinalizer(&rolloutPlugin, FinalizerName)
@@ -212,6 +218,7 @@ func (r *RolloutPluginController) processRolloutSteps(ctx context.Context, rollo
 	log := ctrl.LoggerFrom(ctx).WithValues("rolloutplugin", rolloutPlugin.Name)
 	if rolloutPlugin.Spec.Strategy.Type == "Canary" {
 		var curStepIndex int32
+
 		if rolloutPlugin.Status.UpdatedRevision == rolloutPlugin.Status.PreviousRevision {
 			// Set the rollout in progress status
 			rolloutPlugin.Status.RolloutInProgress = false

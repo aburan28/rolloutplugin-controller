@@ -49,7 +49,7 @@ type RolloutPlugin interface {
 	Terminate(*v1alpha1.RolloutPlugin, types.RpcRolloutContext) (types.RpcRolloutResult, types.RpcError)
 	Abort(*v1alpha1.RolloutPlugin, types.RpcRolloutContext) (types.RpcRolloutResult, types.RpcError)
 	Type() string
-	Sync() types.RpcError
+	Sync(rollout *v1alpha1.RolloutPlugin) types.RpcError
 	SetHeaderRoute(*v1alpha1.RolloutPlugin) types.RpcError
 }
 
@@ -120,7 +120,7 @@ func (g *RolloutPluginRPC) Type() string {
 	return resp
 }
 
-func (g *RolloutPluginRPC) Sync() types.RpcError {
+func (g *RolloutPluginRPC) Sync(rollout *v1alpha1.RolloutPlugin) types.RpcError {
 	var resp string
 	err := g.client.Call("Plugin.Sync", new(any), &resp)
 	if err != nil {
