@@ -11,7 +11,7 @@ const (
 	PhaseRunning   RolloutPhase = "Running"
 	PhaseSucceeded RolloutPhase = "Succeeded"
 	PhaseFailed    RolloutPhase = "Failed"
-	PhaseErrir     RolloutPhase = "Error"
+       PhaseError     RolloutPhase = "Error"
 )
 
 type RpcRolloutResult struct {
@@ -29,7 +29,7 @@ type RpcRolloutContext struct {
 
 func (p RolloutPhase) Validate() error {
 	switch p {
-	case PhaseRunning, PhaseSucceeded, PhaseFailed, PhaseErrir:
+       case PhaseRunning, PhaseSucceeded, PhaseFailed, PhaseError:
 		return nil
 	default:
 		return fmt.Errorf("invalid phase: %s", p)
