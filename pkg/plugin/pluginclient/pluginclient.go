@@ -156,7 +156,7 @@ func VerifyPlugin(pluginName string, checksum string) error {
 	h.Write(file)
 	bs := h.Sum(nil)
 	hash := fmt.Sprintf("%x", bs)
-	if fmt.Sprintf("%x", hash) != checksum {
+	if hash != checksum {
 		return fmt.Errorf("sha256 hash does not match")
 	}
 	return nil

@@ -141,9 +141,7 @@ func (r *RolloutPluginController) Reconcile(ctx context.Context, req ctrl.Reques
 		log.Info("Updating observed generation", "plugin", rolloutPlugin.Spec.Plugin.Name)
 		rolloutPlugin.Status.ObservedGeneration = rolloutPlugin.GetGeneration()
 	}
-	var name string
-	name = "consul"
-	ssHash, err := r.getStatefulSetRevision(ctx, name, rolloutPlugin.Namespace, rolloutPlugin.Spec.Selector.MatchLabels)
+	ssHash, err := r.getStatefulSetRevision(ctx, rolloutPlugin.Namespace, rolloutPlugin.Spec.Selector.MatchLabels)
 	if err != nil {
 		log.Error(err, "Failed to get StatefulSet revision", "plugin", rolloutPlugin.Spec.Plugin.Name)
 		return ctrl.Result{}, err
@@ -199,10 +197,7 @@ func (r *RolloutPluginController) initializePlugin(ctx context.Context, rolloutP
 	// Start the plugin and store its instance and client
 	t := pluginclient.NewRolloutPlugin()
 	pInstance, err := t.StartPlugin(rolloutPlugin.Spec.Plugin.Name)
-	r.pluginClients[rolloutPlugin.Spec.Plugin.Name] = t.Client[rolloutPlugin.Spec.Plugin.Name]
-	r.plugins[rolloutPlugin.Spec.Plugin.Name] = pInstance
 	if err != nil {
-
 		condition := v1alpha1.Condition{
 			Type:    v1alpha1.RolloutPluginConditionTypeInitialized,
 			Status:  v1alpha1.RolloutPluginConditionStatusFalse,
@@ -214,6 +209,9 @@ func (r *RolloutPluginController) initializePlugin(ctx context.Context, rolloutP
 		log.Error(err, "Failed to initialize plugin", "plugin", rolloutPlugin.Spec.Plugin.Name)
 		return err
 	}
+	r.pluginClients[rolloutPlugin.Spec.Plugin.Name] = t.Client[rolloutPlugin.Spec.Plugin.Name]
+	r.plugins[rolloutPlugin.Spec.Plugin.Name] = pInstance
+
 	// Mark as initialized and update conditions
 	rolloutPlugin.Status.Initialized = true
 	condition := v1alpha1.Condition{
@@ -233,7 +231,7 @@ func (r *RolloutPluginController) processRolloutSteps(ctx context.Context, rollo
 
 	log := ctrl.LoggerFrom(ctx).WithValues("rolloutplugin", rolloutPlugin.Name)
 	if rolloutPlugin.Spec.Strategy.Type == "Canary" {
-		var curStepIndex int32
+		curStepIndex := rolloutPlugin.Status.CurrentStepIndex
 
 		if rolloutPlugin.Status.UpdatedRevision == rolloutPlugin.Status.PreviousRevision {
 			// Set the rollout in progress status
@@ -248,12 +246,12 @@ func (r *RolloutPluginController) processRolloutSteps(ctx context.Context, rollo
 		}
 
 		// Check if the rollout is in progress
-		if rolloutPlugin.Status.CurrentStepIndex == 0 && rolloutPlugin.Status.PreviousRevision != rolloutPlugin.Status.UpdatedRevision {
+		if curStepIndex == 0 && rolloutPlugin.Status.PreviousRevision != rolloutPlugin.Status.UpdatedRevision {
 			// Set the rollout in progress status
 			rolloutPlugin.Status.RolloutInProgress = true
 			// Initialize the current step index if not set
-			rolloutPlugin.Status.CurrentStepIndex = 1
 			curStepIndex = 1
+			rolloutPlugin.Status.CurrentStepIndex = curStepIndex
 			log.Info("Initializing current step index", "step", rolloutPlugin.Status.CurrentStepIndex)
 		}
 
@@ -264,13 +262,17 @@ func (r *RolloutPluginController) processRolloutSteps(ctx context.Context, rollo
 			log.Info("Current step complete, moving to next step", "step", rolloutPlugin.Status.CurrentStepIndex)
 		}
 
+		if curStepIndex < 1 || int(curStepIndex) > len(rolloutPlugin.Spec.Strategy.Canary.Steps) {
+			return fmt.Errorf("current step index %d is out of range [1, %d]", curStepIndex, len(rolloutPlugin.Spec.Strategy.Canary.Steps))
+		}
+
 		log.Info("Executing rollout steps for plugin", "plugin", rolloutPlugin.Spec.Plugin.Name)
-		curStep := rolloutPlugin.Spec.Strategy.Canary.Steps[rolloutPlugin.Status.CurrentStepIndex-1]
+		curStep := rolloutPlugin.Spec.Strategy.Canary.Steps[curStepIndex-1]
 
 		if curStep.Pause != nil {
 			log.Info("Pausing rollout for plugin", "plugin", rolloutPlugin.Spec.Plugin.Name)
 			rolloutPlugin.Status.Paused = true
-			var d time.Duration
+			d := curStep.Pause.Duration
 			rolloutPlugin.Status.ResumeTime = &metav1.Time{Time: time.Now().Add(d)}
 		}
 
@@ -332,14 +334,13 @@ func (r *RolloutPluginController) Run(ctx context.Context, threadiness int) erro
 //			r.rolloutPluginWorkqueue.Forget(obj)
 //		}
 //	}
-func (r *RolloutPluginController) getStatefulSetRevision(ctx context.Context, name string, namespace string, matchLabels map[string]string) (string, error) {
+func (r *RolloutPluginController) getStatefulSetRevision(ctx context.Context, namespace string, matchLabels map[string]string) (string, error) {
 	clientset, err := kubernetes.NewForConfig(ctrl.GetConfigOrDie())
 
 	if err != nil {
 		return "", fmt.Errorf("failed to create Kubernetes clientset: %w", err)
 	}
 	r.clientset = clientset
-	// r.clientset.AppsV1().StatefulSets(namespace).Get(ctx, name, metav1.GetOptions{})
 	ls := metav1.LabelSelector{
 		MatchLabels: matchLabels,
 	}
@@ -366,7 +367,10 @@ func (r *RolloutPluginController) getStatefulSetRevision(ctx context.Context, na
 	}
 
 	i := int32(0)
-	podHash := hash.ComputePodTemplateHash(&ss.Spec.Template, &i)
+	podHash, err := hash.ComputePodTemplateHash(&ss.Spec.Template, &i)
+	if err != nil {
+		return "", fmt.Errorf("failed to compute pod template hash: %w", err)
+	}
 
 	return podHash, nil
 }

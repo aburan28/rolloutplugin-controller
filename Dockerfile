@@ -17,7 +17,7 @@ RUN go build -o rolloutplugin-controller cmd/root
 
 
 # Start a new stage from scratch
-FROM library/debian:stretch-slim
+FROM library/debian:bookworm-slim
 
 # Set the Current Working Directory inside the container
 WORKDIR /app
