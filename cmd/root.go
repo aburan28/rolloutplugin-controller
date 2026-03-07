@@ -99,10 +99,6 @@ func newCommand() *cobra.Command {
 			if err != nil {
 				log.Fatal(err)
 			}
-
-			if err != nil {
-				log.Fatal(err)
-			}
 			var rolloutPluginController *controller.RolloutPluginController
 			var revisionController *controller.RevisionController
 			var podTemplateController *controller.PodTemplateController
@@ -169,9 +165,9 @@ func newCommand() *cobra.Command {
 			// Add a shutdown hook to kill plugins on manager stop
 			mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
 				<-ctx.Done() // Wait for stop signal
-				rolloutPluginController.Shutdown()
-				// revisionController.Shutdown()
-				// podTemplateController.Shutdown()
+				if rolloutPluginController != nil {
+					rolloutPluginController.Shutdown()
+				}
 				return nil
 			}))
 
